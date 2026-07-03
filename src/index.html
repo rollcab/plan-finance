@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loan Closure Forecaster</title>
+    <title>Loan Portfolio Forecaster</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Loan Closure Forecaster</h1>
+            <h1>Loan Portfolio Forecaster</h1>
             <button id="themeToggle" class="btn-icon" aria-label="Toggle Dark Mode">
                 <svg id="sunIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -19,32 +19,19 @@
         <main>
             <section class="card config-card">
                 <div class="file-name-container">
-                    <input type="text" id="configNameInput" class="config-name-input" value="loan_config" placeholder="Enter config name...">
+                    <input type="text" id="configNameInput" class="config-name-input" value="portfolio_config" placeholder="Enter config name...">
                     <span id="configTimestamp" class="config-timestamp hidden"></span>
                 </div>
                 <div class="config-actions">
-                    <button id="exportConfigBtn" class="btn-outline btn-small">Export Config (JSON)</button>
-                    <label for="importConfig" class="btn-outline btn-small file-label">Import Config (JSON)</label>
+                    <button id="exportConfigBtn" class="btn-outline btn-small">Export (JSON)</button>
+                    <label for="importConfig" class="btn-outline btn-small file-label">Import (JSON)</label>
                     <input type="file" id="importConfig" accept=".json" class="hidden-file-input">
                 </div>
             </section>
 
             <section class="card">
-                <p class="disclaimer"><strong>Note:</strong> This calculator assumes standard compounding and does not factor in pre-closure rates, processing fees, or penalty charges. Keep it simple.</p>
-                
+                <h2>Global Strategy</h2>
                 <div class="input-grid">
-                    <div class="input-group">
-                        <label for="principal">Principal Pending (₹)</label>
-                        <input type="number" id="principal" placeholder="e.g., 1500000" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="roi">Rate of Interest (Annual %)</label>
-                        <input type="number" id="roi" placeholder="e.g., 8.5" step="0.01" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="payment">Planned Monthly Payment (₹)</label>
-                        <input type="number" id="payment" placeholder="e.g., 50000" required>
-                    </div>
                     <div class="input-group">
                         <label for="startMonth">Starting Month</label>
                         <select id="startMonth">
@@ -60,17 +47,36 @@
                         <label for="startYear">Starting Year</label>
                         <input type="number" id="startYear" required>
                     </div>
+                    <div class="input-group">
+                        <label for="strategyMode">Payment Allocation</label>
+                        <select id="strategyMode">
+                            <option value="manual">Manual (Set per loan)</option>
+                            <option value="smart">Smart Recommendation (Highest ROI first)</option>
+                        </select>
+                    </div>
+                    <div class="input-group hidden" id="totalBudgetGroup">
+                        <label for="totalBudget">Total Monthly Budget (₹)</label>
+                        <input type="number" id="totalBudget" placeholder="e.g., 100000">
+                    </div>
                 </div>
+            </section>
 
-                <div id="error-message" class="error hidden"></div>
+            <section class="card">
+                <div class="header-with-action">
+                    <h2>Your Loans</h2>
+                    <button id="addLoanBtn" class="btn-outline btn-small">+ Add Loan</button>
+                </div>
+                <div id="loanList" class="loan-list">
+                    </div>
                 
-                <button id="calculateBtn" class="btn-primary">Calculate Progress</button>
+                <div id="error-message" class="error hidden"></div>
+                <button id="calculateBtn" class="btn-primary" style="margin-top: 1rem;">Calculate Portfolio Progress</button>
             </section>
 
             <section id="results" class="hidden">
                 <div class="summary-card">
                     <div class="summary-text">
-                        <h2>Estimated Closure: <span id="closureDate"></span></h2>
+                        <h2>Portfolio Debt-Free Date: <span id="closureDate" class="highlight"></span></h2>
                         <div class="interest-breakdown">
                             <p>Interest Already Paid: ₹<span id="interestPaid">0</span></p>
                             <p>Interest To Be Paid: ₹<span id="interestRemaining">0</span></p>
@@ -80,6 +86,13 @@
                     <button id="downloadCsvBtn" class="btn-outline">Download CSV</button>
                 </div>
                 
+                <div class="table-controls">
+                    <label for="viewSelector"><strong>Display Data For:</strong></label>
+                    <select id="viewSelector" class="view-selector">
+                        <option value="combined">Combined Portfolio Overview</option>
+                        </select>
+                </div>
+
                 <div class="table-container">
                     <table id="scheduleTable">
                         <thead>
@@ -98,6 +111,30 @@
             </section>
         </main>
     </div>
+
+    <template id="loan-card-template">
+        <div class="loan-card">
+            <div class="loan-card-header">
+                <input type="text" class="loan-name-input" placeholder="Loan Name (e.g., Home Loan)" required>
+                <button class="btn-icon remove-loan-btn" aria-label="Remove Loan">✖</button>
+            </div>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>Principal Pending (₹)</label>
+                    <input type="number" class="loan-principal" placeholder="1500000" required>
+                </div>
+                <div class="input-group">
+                    <label>Rate of Interest (%)</label>
+                    <input type="number" class="loan-roi" placeholder="8.5" step="0.01" required>
+                </div>
+                <div class="input-group manual-payment-group">
+                    <label>Planned Payment (₹)</label>
+                    <input type="number" class="loan-payment" placeholder="50000">
+                </div>
+            </div>
+        </div>
+    </template>
+
     <script src="script.js"></script>
 </body>
 </html>
