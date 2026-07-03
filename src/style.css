@@ -203,3 +203,43 @@ th {
 .past-row td {
     background-color: var(--progress-bg);
 }
+
+/* File Name Header Styles */
+.config-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+}
+
+.file-name-container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.config-name-input {
+    font-size: 1.25rem;
+    font-weight: bold;
+    border: none;
+    border-bottom: 1px dashed var(--border-color);
+    background: transparent;
+    color: var(--text-color);
+    padding: 0.2rem 0;
+    width: 100%;
+    max-width: 300px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.config-name-input:focus {
+    border-bottom: 1px solid var(--text-color);
+}
+
+.config-timestamp {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 0.25rem;
+}
