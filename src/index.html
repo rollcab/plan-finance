@@ -18,6 +18,10 @@
 
         <main>
             <section class="card config-card">
+                <div class="file-name-container">
+                    <input type="text" id="configNameInput" class="config-name-input" value="loan_config" placeholder="Enter config name...">
+                    <span id="configTimestamp" class="config-timestamp hidden"></span>
+                </div>
                 <div class="config-actions">
                     <button id="exportConfigBtn" class="btn-outline btn-small">Export Config (JSON)</button>
                     <label for="importConfig" class="btn-outline btn-small file-label">Import Config (JSON)</label>
