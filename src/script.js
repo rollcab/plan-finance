@@ -173,6 +173,11 @@ function getFormattedTimestamp() {
 
 // --- Import / Export Features ---
 
+// Sync the editable input with our global state
+document.getElementById('configNameInput').addEventListener('input', (e) => {
+    appState.baseFileName = e.target.value.trim() || "loan_config";
+});
+
 function exportJSON() {
     const currentInputs = {
         principal: document.getElementById('principal').value,
@@ -182,28 +187,43 @@ function exportJSON() {
         startYear: document.getElementById('startYear').value
     };
     
-    // Construct the proposed filename
+    // Use the base filename from the UI, appended with the new timestamp
     const timestamp = getFormattedTimestamp();
     const suggestedFileName = `${appState.baseFileName}.${timestamp}.json`;
     
-    // Prompt the user, fallback if they cancel
+    // Prompt the user to confirm/edit the final save name
     const finalFileName = prompt("Save configuration as:", suggestedFileName);
-    if (!finalFileName) return; // Abort if cancelled
+    if (!finalFileName) return; 
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentInputs, null, 2));
     triggerDownload(dataStr, finalFileName);
+    
+    // Update the timestamp UI to reflect the new save
+    const tsEl = document.getElementById('configTimestamp');
+    tsEl.textContent = `Last exported: ${timestamp}`;
+    tsEl.classList.remove('hidden');
 }
 
 function importJSON(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Capture the base filename (everything before the first dot)
-    const rawFileName = file.name;
-    if (rawFileName.includes('.')) {
-        appState.baseFileName = rawFileName.split('.')[0];
+    // Process the filename to split the base name and the timestamp
+    const rawFileName = file.name.replace(/\.json$/i, ''); // Remove the .json extension
+    const parts = rawFileName.split('.');
+    
+    appState.baseFileName = parts[0];
+    document.getElementById('configNameInput').value = appState.baseFileName;
+
+    const tsEl = document.getElementById('configTimestamp');
+    if (parts.length > 1) {
+        // If there's data after the first dot, treat it as the timestamp
+        const timestampStr = parts.slice(1).join('.');
+        tsEl.textContent = `Loaded from: ${timestampStr}`;
+        tsEl.classList.remove('hidden');
     } else {
-        appState.baseFileName = rawFileName; // Fallback if file has no extension
+        // Hide the timestamp if the file was just "loan_config.json"
+        tsEl.classList.add('hidden');
     }
 
     const reader = new FileReader();
@@ -270,7 +290,12 @@ function downloadCSV() {
     });
 
     const timestamp = getFormattedTimestamp();
-    triggerDownload(csvContent, `${appState.baseFileName}_schedule.${timestamp}.csv`);
+    // Prompt for CSV name, defaulting to baseName_schedule.timestamp.csv
+    const defaultCsvName = `${appState.baseFileName}_schedule.${timestamp}.csv`;
+    const finalFileName = prompt("Save CSV as:", defaultCsvName);
+    if (!finalFileName) return;
+
+    triggerDownload(csvContent, finalFileName);
 }
 
 function triggerDownload(content, filename) {
