@@ -66,7 +66,13 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 .remove-loan-btn { color: var(--error-color); font-size: 1rem; padding: 0.2rem; }
 
 /* Inputs and Forms */
-.input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1rem; }
+/* Inputs and Forms */
+.input-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); /* Widened to prevent truncation */
+    gap: 1.5rem; 
+    margin-bottom: 1rem; 
+}
 .input-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem;}
 input, select { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--bg-color); color: var(--text-color); font-size: 1rem; }
 
