@@ -131,7 +131,7 @@ function calculateSchedule() {
             dateString: `${monthNames[currentMonth]} ${currentYear}`,
             month: currentMonth,
             year: currentYear,
-            combined: { opening: 0, interest: 0, principalPaid: 0, closing: 0 },
+            combined: { opening: 0, interest: 0, principalPaid: 0, totalPayment: 0, closing: 0 },
             loans: {}
         };
 
@@ -200,6 +200,7 @@ function calculateSchedule() {
                 anyLoanActive = true;
                 let interest = loan.currentMonthInterest;
                 let principalPaid = loan.currentMonthPayment - interest;
+                let totalPayment = loan.currentMonthPayment;
                 let opening = loan.remaining;
                 
                 loan.remaining -= principalPaid;
@@ -209,15 +210,17 @@ function calculateSchedule() {
                     opening: opening.toFixed(2),
                     interest: interest.toFixed(2),
                     principalPaid: principalPaid.toFixed(2),
+                    totalPayment: totalPayment.toFixed(2),
                     closing: loan.remaining.toFixed(2)
                 };
 
                 monthData.combined.opening += opening;
                 monthData.combined.interest += interest;
                 monthData.combined.principalPaid += principalPaid;
+                monthData.combined.totalPayment += totalPayment;
                 monthData.combined.closing += loan.remaining;
             } else {
-                monthData.loans[loan.id] = { opening: "0.00", interest: "0.00", principalPaid: "0.00", closing: "0.00" };
+                monthData.loans[loan.id] = { opening: "0.00", interest: "0.00", principalPaid: "0.00", totalPayment: "0.00", closing: "0.00" };
             }
         });
 
@@ -227,6 +230,7 @@ function calculateSchedule() {
             monthData.combined.opening = monthData.combined.opening.toFixed(2);
             monthData.combined.interest = monthData.combined.interest.toFixed(2);
             monthData.combined.principalPaid = monthData.combined.principalPaid.toFixed(2);
+            monthData.combined.totalPayment = monthData.combined.totalPayment.toFixed(2);
             monthData.combined.closing = monthData.combined.closing.toFixed(2);
             
             schedule.push(monthData);
@@ -262,11 +266,8 @@ function calculateSchedule() {
 function updateSummaries() {
     const now = new Date();
     const currentAbsoluteMonth = (now.getFullYear() * 12) + now.getMonth();
-    
-    // Formatting helper
     const fmt = (num) => Number(num.toFixed(2)).toLocaleString('en-IN');
 
-    // Initialize summary data structures
     let summaryData = {
         combined: { paid: 0, remain: 0, total: 0, date: '' },
         loans: {}
@@ -276,12 +277,10 @@ function updateSummaries() {
         summaryData.loans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: '' };
     });
 
-    // Calculate all totals and end dates in one pass
     appState.schedule.forEach(row => {
         const rowAbsoluteMonth = (row.year * 12) + row.month;
         const isPast = rowAbsoluteMonth <= currentAbsoluteMonth;
 
-        // Combined Math
         const cInt = parseFloat(row.combined.interest);
         if (cInt > 0 || parseFloat(row.combined.opening) > 0) {
             summaryData.combined.total += cInt;
@@ -290,7 +289,6 @@ function updateSummaries() {
             summaryData.combined.date = row.dateString;
         }
 
-        // Individual Math
         appState.config.loans.forEach(l => {
             const lData = row.loans[l.id];
             if (lData && parseFloat(lData.opening) > 0) {
@@ -306,7 +304,6 @@ function updateSummaries() {
     const container = document.getElementById('portfolioSummaryContainer');
     container.innerHTML = '';
 
-    // 1. Build Combined Summary Card
     const combinedHTML = `
         <div class="summary-block combined-summary">
             <h3>Combined Portfolio <span class="highlight">(Ends: ${summaryData.combined.date})</span></h3>
@@ -318,7 +315,6 @@ function updateSummaries() {
         </div>
     `;
 
-    // 2. Build Individual Summary Cards
     let individualHTML = '<div class="individual-summaries-grid">';
     appState.config.loans.forEach(l => {
         const d = summaryData.loans[l.id];
@@ -335,7 +331,6 @@ function updateSummaries() {
     });
     individualHTML += '</div>';
 
-    // Inject into DOM
     container.innerHTML = combinedHTML + individualHTML;
 }
 
@@ -364,6 +359,7 @@ function renderTable() {
             <td>₹${Number(displayData.opening).toLocaleString('en-IN')}</td>
             <td>₹${Number(displayData.interest).toLocaleString('en-IN')}</td>
             <td>₹${Number(displayData.principalPaid).toLocaleString('en-IN')}</td>
+            <td><strong>₹${Number(displayData.totalPayment).toLocaleString('en-IN')}</strong></td>
             <td>₹${Number(displayData.closing).toLocaleString('en-IN')}</td>
         `;
         tbody.appendChild(tr);
@@ -458,9 +454,9 @@ function downloadCSV() {
     let csvRows = [];
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     
-    let headerRow = ["Config Key", "Config Value", "", "COMBINED Date", "Opening Principal", "Interest Portion", "Principal Portion", "Closing Principal"];
+    let headerRow = ["Config Key", "Config Value", "", "COMBINED Date", "Opening Principal", "Interest Portion", "Principal Portion", "Total Payment", "Closing Principal"];
     appState.config.loans.forEach(loan => {
-        headerRow.push("", `${loan.name.toUpperCase()} Date`, "Opening Principal", "Interest Portion", "Principal Portion", "Closing Principal");
+        headerRow.push("", `${loan.name.toUpperCase()} Date`, "Opening Principal", "Interest Portion", "Principal Portion", "Total Payment", "Closing Principal");
     });
     csvRows.push(headerRow);
 
@@ -493,21 +489,22 @@ function downloadCSV() {
 
         if (i < appState.schedule.length) {
             const month = appState.schedule[i];
-            row.push(month.dateString, month.combined.opening, month.combined.interest, month.combined.principalPaid, month.combined.closing);
+            row.push(month.dateString, month.combined.opening, month.combined.interest, month.combined.principalPaid, month.combined.totalPayment, month.combined.closing);
 
             appState.config.loans.forEach(loanConfig => {
                 row.push(""); 
                 const lData = month.loans[loanConfig.id];
                 if (lData) {
-                    row.push(month.dateString, lData.opening, lData.interest, lData.principalPaid, lData.closing);
+                    row.push(month.dateString, lData.opening, lData.interest, lData.principalPaid, lData.totalPayment, lData.closing);
                 } else {
-                    row.push("", "", "", "", ""); 
+                    row.push("", "", "", "", "", ""); 
                 }
             });
         } else {
-            row.push("", "", "", "", "");
+            // Buffer spaces for when schedule is done but config is still printing
+            row.push("", "", "", "", "", "");
             appState.config.loans.forEach(() => {
-                row.push("", "", "", "", "", "");
+                row.push("", "", "", "", "", "", "");
             });
         }
 
