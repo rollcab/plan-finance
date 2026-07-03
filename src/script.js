@@ -1,7 +1,8 @@
 // Global State for exports
 let appState = {
     config: {},
-    schedule: []
+    schedule: [],
+    baseFileName: "loan_config" // Added to track the active file name
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -71,7 +72,6 @@ function calculateSchedule() {
 
     let remainingPrincipal = config.principal;
     let schedule = [];
-    let totalInterestPaid = 0;
     
     let currentMonth = config.startMonth;
     let currentYear = config.startYear;
@@ -89,7 +89,6 @@ function calculateSchedule() {
 
         let openingPrincipal = remainingPrincipal;
         remainingPrincipal -= principalPaidForMonth;
-        totalInterestPaid += interestForMonth;
 
         schedule.push({
             dateString: `${monthNames[currentMonth]} ${currentYear}`,
@@ -119,10 +118,8 @@ function renderTable(schedule) {
     const tbody = document.getElementById('scheduleBody');
     tbody.innerHTML = ''; 
 
-    // Get current real-world date to check progress
     const now = new Date();
-    const currentRealYear = now.getFullYear();
-    const currentRealMonth = now.getMonth();
+    const currentAbsoluteMonth = (now.getFullYear() * 12) + now.getMonth();
 
     let interestAlreadyPaid = 0;
     let interestToBePaid = 0;
@@ -131,11 +128,11 @@ function renderTable(schedule) {
     schedule.forEach(row => {
         const tr = document.createElement('tr');
         const rowInterest = parseFloat(row.interest);
+        const rowAbsoluteMonth = (row.year * 12) + row.month;
         
         overallInterestPaid += rowInterest;
         
-        // Highlight logic and interest splitting
-        if (row.year < currentRealYear || (row.year === currentRealYear && row.month <= currentRealMonth)) {
+        if (rowAbsoluteMonth <= currentAbsoluteMonth) {
             tr.classList.add('past-row');
             interestAlreadyPaid += rowInterest;
         } else {
@@ -155,7 +152,6 @@ function renderTable(schedule) {
     const finalDate = schedule[schedule.length - 1].dateString;
     document.getElementById('closureDate').textContent = finalDate;
     
-    // Update the new breakdown UI
     document.getElementById('interestPaid').textContent = Number(interestAlreadyPaid.toFixed(2)).toLocaleString('en-IN');
     document.getElementById('interestRemaining').textContent = Number(interestToBePaid.toFixed(2)).toLocaleString('en-IN');
     document.getElementById('totalInterest').textContent = Number(overallInterestPaid.toFixed(2)).toLocaleString('en-IN');
@@ -168,10 +164,16 @@ function showError(message) {
     errorMsg.classList.remove('hidden');
 }
 
+// --- Helper Functions ---
+function getFormattedTimestamp() {
+    const now = new Date();
+    const pad = (num) => String(num).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+}
+
 // --- Import / Export Features ---
 
 function exportJSON() {
-    // Only export if we have valid configs in the inputs
     const currentInputs = {
         principal: document.getElementById('principal').value,
         roi: document.getElementById('roi').value,
@@ -180,13 +182,29 @@ function exportJSON() {
         startYear: document.getElementById('startYear').value
     };
     
+    // Construct the proposed filename
+    const timestamp = getFormattedTimestamp();
+    const suggestedFileName = `${appState.baseFileName}.${timestamp}.json`;
+    
+    // Prompt the user, fallback if they cancel
+    const finalFileName = prompt("Save configuration as:", suggestedFileName);
+    if (!finalFileName) return; // Abort if cancelled
+
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentInputs, null, 2));
-    triggerDownload(dataStr, "loan_config.json");
+    triggerDownload(dataStr, finalFileName);
 }
 
 function importJSON(event) {
     const file = event.target.files[0];
     if (!file) return;
+
+    // Capture the base filename (everything before the first dot)
+    const rawFileName = file.name;
+    if (rawFileName.includes('.')) {
+        appState.baseFileName = rawFileName.split('.')[0];
+    } else {
+        appState.baseFileName = rawFileName; // Fallback if file has no extension
+    }
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -198,7 +216,6 @@ function importJSON(event) {
             if(config.startMonth) document.getElementById('startMonth').value = config.startMonth;
             if(config.startYear) document.getElementById('startYear').value = config.startYear;
             
-            // Auto calculate after import if all main fields exist
             if(config.principal && config.roi && config.payment) {
                 calculateSchedule();
             }
@@ -207,7 +224,6 @@ function importJSON(event) {
         }
     };
     reader.readAsText(file);
-    // Reset file input so the same file can be loaded again if needed
     event.target.value = '';
 }
 
@@ -216,7 +232,6 @@ function downloadCSV() {
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     
-    // Config setup mapped to an array for easy row building
     const configLabels = [
         "Principal Pending", "Rate of Interest (%)", "Planned Monthly Payment", 
         "Starting Month", "Starting Year"
@@ -230,25 +245,19 @@ function downloadCSV() {
     ];
 
     let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Headers
     csvContent += "Configuration,Value,,Date,Opening Principal,Interest Portion,Principal Portion,Closing Principal\n";
 
-    // Build Rows
     appState.schedule.forEach((row, index) => {
         let rowData = [];
         
-        // Add config data for the first 5 rows, empty otherwise
         if (index < configLabels.length) {
             rowData.push(`"${configLabels[index]}"`, `"${configValues[index]}"`);
         } else {
             rowData.push("", "");
         }
         
-        // Empty buffer column
         rowData.push(""); 
 
-        // Add schedule data (using raw numbers, no commas, so spreadsheet software handles it natively)
         rowData.push(
             `"${row.dateString}"`, 
             row.openingPrincipal, 
@@ -260,14 +269,15 @@ function downloadCSV() {
         csvContent += rowData.join(",") + "\n";
     });
 
-    triggerDownload(csvContent, "loan_amortization_schedule.csv");
+    const timestamp = getFormattedTimestamp();
+    triggerDownload(csvContent, `${appState.baseFileName}_schedule.${timestamp}.csv`);
 }
 
 function triggerDownload(content, filename) {
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", content);
     downloadAnchorNode.setAttribute("download", filename);
-    document.body.appendChild(downloadAnchorNode); // required for firefox
+    document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
 }
