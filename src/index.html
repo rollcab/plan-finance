@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,10 +10,21 @@
     <div class="container">
         <header>
             <h1>Loan Closure Forecaster</h1>
-            <button id="themeToggle" class="btn-outline">Toggle Dark Mode</button>
+            <button id="themeToggle" class="btn-icon" aria-label="Toggle Dark Mode">
+                <svg id="sunIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
         </header>
 
         <main>
+            <section class="card config-card">
+                <div class="config-actions">
+                    <button id="exportConfigBtn" class="btn-outline btn-small">Export Config (JSON)</button>
+                    <label for="importConfig" class="btn-outline btn-small file-label">Import Config (JSON)</label>
+                    <input type="file" id="importConfig" accept=".json" class="hidden-file-input">
+                </div>
+            </section>
+
             <section class="card">
                 <p class="disclaimer"><strong>Note:</strong> This calculator assumes standard compounding and does not factor in pre-closure rates, processing fees, or penalty charges. Keep it simple.</p>
                 
@@ -33,18 +44,12 @@
                     <div class="input-group">
                         <label for="startMonth">Starting Month</label>
                         <select id="startMonth">
-                            <option value="0">January</option>
-                            <option value="1">February</option>
-                            <option value="2">March</option>
-                            <option value="3">April</option>
-                            <option value="4">May</option>
-                            <option value="5">June</option>
-                            <option value="6">July</option>
-                            <option value="7">August</option>
-                            <option value="8">September</option>
-                            <option value="9">October</option>
-                            <option value="10">November</option>
-                            <option value="11">December</option>
+                            <option value="0">January</option><option value="1">February</option>
+                            <option value="2">March</option><option value="3">April</option>
+                            <option value="4">May</option><option value="5">June</option>
+                            <option value="6">July</option><option value="7">August</option>
+                            <option value="8">September</option><option value="9">October</option>
+                            <option value="10">November</option><option value="11">December</option>
                         </select>
                     </div>
                     <div class="input-group">
@@ -60,8 +65,11 @@
 
             <section id="results" class="hidden">
                 <div class="summary-card">
-                    <h2>Estimated Closure: <span id="closureDate"></span></h2>
-                    <p>Total Interest to be Paid: ₹<span id="totalInterest"></span></p>
+                    <div class="summary-text">
+                        <h2>Estimated Closure: <span id="closureDate"></span></h2>
+                        <p>Total Interest to be Paid: ₹<span id="totalInterest"></span></p>
+                    </div>
+                    <button id="downloadCsvBtn" class="btn-outline">Download CSV</button>
                 </div>
                 
                 <div class="table-container">
