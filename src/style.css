@@ -7,6 +7,7 @@
     --primary-text: #ffffff;
     --error-color: #d32f2f;
     --error-bg: #ffebee;
+    --progress-bg: #e8f5e9; /* Light green */
 }
 
 [data-theme="dark"] {
@@ -18,6 +19,7 @@
     --primary-text: #121212;
     --error-color: #ffb4ab;
     --error-bg: #410002;
+    --progress-bg: #1b5e20; /* Dark green */
 }
 
 * {
@@ -55,7 +57,28 @@ header {
     margin-bottom: 2rem;
 }
 
-.card, .summary-card {
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.config-card {
+    padding: 1rem 2rem;
+}
+
+.config-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+.summary-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -86,7 +109,7 @@ input, select {
     font-size: 1rem;
 }
 
-button {
+button, .file-label {
     cursor: pointer;
     padding: 0.75rem 1.5rem;
     border-radius: 4px;
@@ -94,9 +117,11 @@ button {
     font-weight: bold;
     border: none;
     transition: opacity 0.2s;
+    display: inline-block;
+    text-align: center;
 }
 
-button:hover {
+button:hover, .file-label:hover {
     opacity: 0.8;
 }
 
@@ -112,6 +137,25 @@ button:hover {
     border: 1px solid var(--text-color);
 }
 
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hidden-file-input {
+    display: none;
+}
+
 .error {
     color: var(--error-color);
     background-color: var(--error-bg);
@@ -121,7 +165,7 @@ button:hover {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 /* Table Styles */
@@ -144,4 +188,8 @@ th, td {
 th {
     background-color: var(--card-bg);
     font-weight: 600;
+}
+
+.past-row td {
+    background-color: var(--progress-bg);
 }
