@@ -86,6 +86,16 @@ header {
     margin-bottom: 2rem;
 }
 
+.interest-breakdown {
+    margin-top: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.interest-breakdown p {
+    margin-bottom: 0.25rem;
+    color: var(--text-color);
+}
+
 .input-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
