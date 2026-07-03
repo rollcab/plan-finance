@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('addLoanBtn').addEventListener('click', addLoanCard);
     
-    // Toggle manual vs smart mode inputs & labels
     document.getElementById('strategyMode').addEventListener('change', (e) => {
         const totalBudgetGroup = document.getElementById('totalBudgetGroup');
         const dynamicLabels = document.querySelectorAll('.dynamic-payment-label');
@@ -63,7 +62,6 @@ function addLoanCard(loanData = null) {
         loanCard.remove();
     });
 
-    // Sync the label based on current mode
     const mode = document.getElementById('strategyMode').value;
     loanCard.querySelector('.dynamic-payment-label').textContent = mode === 'smart' ? "Minimum EMI (₹)" : "Planned Payment (₹)";
 
@@ -141,7 +139,6 @@ function calculateSchedule() {
             let totalEMIThisMonth = 0;
             let anyError = false;
 
-            // 1. Calculate EMIs and Interests
             activeLoans.forEach(loan => {
                 if (loan.remaining > 0) {
                     let interest = loan.remaining * (loan.roi / 12 / 100);
@@ -167,7 +164,6 @@ function calculateSchedule() {
 
             let budgetLeft = config.global.totalBudget - totalEMIThisMonth;
             
-            // 2. Sort by highest ROI for avalanche and dump the remainder
             let priorityLoans = [...activeLoans].filter(l => l.remaining > 0).sort((a, b) => b.roi - a.roi);
             for (let loan of priorityLoans) {
                 if (budgetLeft <= 0) break;
@@ -183,7 +179,6 @@ function calculateSchedule() {
             }
 
         } else {
-            // Manual Mode
             activeLoans.forEach(loan => {
                 if (loan.remaining > 0) {
                     let interest = loan.remaining * (loan.roi / 12 / 100);
@@ -260,7 +255,88 @@ function calculateSchedule() {
         viewSelector.appendChild(opt);
     });
 
+    updateSummaries();
     renderTable();
+}
+
+function updateSummaries() {
+    const now = new Date();
+    const currentAbsoluteMonth = (now.getFullYear() * 12) + now.getMonth();
+    
+    // Formatting helper
+    const fmt = (num) => Number(num.toFixed(2)).toLocaleString('en-IN');
+
+    // Initialize summary data structures
+    let summaryData = {
+        combined: { paid: 0, remain: 0, total: 0, date: '' },
+        loans: {}
+    };
+
+    appState.config.loans.forEach(l => {
+        summaryData.loans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: '' };
+    });
+
+    // Calculate all totals and end dates in one pass
+    appState.schedule.forEach(row => {
+        const rowAbsoluteMonth = (row.year * 12) + row.month;
+        const isPast = rowAbsoluteMonth <= currentAbsoluteMonth;
+
+        // Combined Math
+        const cInt = parseFloat(row.combined.interest);
+        if (cInt > 0 || parseFloat(row.combined.opening) > 0) {
+            summaryData.combined.total += cInt;
+            if (isPast) summaryData.combined.paid += cInt;
+            else summaryData.combined.remain += cInt;
+            summaryData.combined.date = row.dateString;
+        }
+
+        // Individual Math
+        appState.config.loans.forEach(l => {
+            const lData = row.loans[l.id];
+            if (lData && parseFloat(lData.opening) > 0) {
+                const lInt = parseFloat(lData.interest);
+                summaryData.loans[l.id].total += lInt;
+                if (isPast) summaryData.loans[l.id].paid += lInt;
+                else summaryData.loans[l.id].remain += lInt;
+                summaryData.loans[l.id].date = row.dateString;
+            }
+        });
+    });
+
+    const container = document.getElementById('portfolioSummaryContainer');
+    container.innerHTML = '';
+
+    // 1. Build Combined Summary Card
+    const combinedHTML = `
+        <div class="summary-block combined-summary">
+            <h3>Combined Portfolio <span class="highlight">(Ends: ${summaryData.combined.date})</span></h3>
+            <div class="summary-stats">
+                <p>Interest Already Paid: ₹${fmt(summaryData.combined.paid)}</p>
+                <p>Interest To Be Paid: ₹${fmt(summaryData.combined.remain)}</p>
+                <p><strong>Overall Interest: ₹${fmt(summaryData.combined.total)}</strong></p>
+            </div>
+        </div>
+    `;
+
+    // 2. Build Individual Summary Cards
+    let individualHTML = '<div class="individual-summaries-grid">';
+    appState.config.loans.forEach(l => {
+        const d = summaryData.loans[l.id];
+        individualHTML += `
+            <div class="summary-block individual-summary">
+                <h4>${d.name} <span class="highlight">(Ends: ${d.date})</span></h4>
+                <div class="summary-stats">
+                    <p>Paid: ₹${fmt(d.paid)}</p>
+                    <p>Remaining: ₹${fmt(d.remain)}</p>
+                    <p><strong>Total: ₹${fmt(d.total)}</strong></p>
+                </div>
+            </div>
+        `;
+    });
+    individualHTML += '</div>';
+
+    // Inject into DOM
+    container.innerHTML = combinedHTML + individualHTML;
 }
 
 function renderTable() {
@@ -273,24 +349,10 @@ function renderTable() {
     const now = new Date();
     const currentAbsoluteMonth = (now.getFullYear() * 12) + now.getMonth();
 
-    let interestAlreadyPaid = 0;
-    let interestToBePaid = 0;
-    let overallInterestPaid = 0;
-
     appState.schedule.forEach(row => {
         const tr = document.createElement('tr');
         const rowAbsoluteMonth = (row.year * 12) + row.month;
         
-        // 1. Calculate Summary Totals ALWAYS using combined data
-        const combinedInterest = parseFloat(row.combined.interest);
-        overallInterestPaid += combinedInterest;
-        if (rowAbsoluteMonth <= currentAbsoluteMonth) {
-            interestAlreadyPaid += combinedInterest;
-        } else {
-            interestToBePaid += combinedInterest;
-        }
-
-        // 2. Render Table Rows based on dropdown selection
         let displayData = viewId === 'combined' ? row.combined : row.loans[viewId];
         
         if (viewId !== 'combined' && parseFloat(displayData.opening) === 0) return;
@@ -306,13 +368,6 @@ function renderTable() {
         `;
         tbody.appendChild(tr);
     });
-
-    // Update Summary Header (always shows combined summary)
-    const finalRow = appState.schedule[appState.schedule.length - 1];
-    document.getElementById('closureDate').textContent = finalRow.dateString;
-    document.getElementById('interestPaid').textContent = Number(interestAlreadyPaid.toFixed(2)).toLocaleString('en-IN');
-    document.getElementById('interestRemaining').textContent = Number(interestToBePaid.toFixed(2)).toLocaleString('en-IN');
-    document.getElementById('totalInterest').textContent = Number(overallInterestPaid.toFixed(2)).toLocaleString('en-IN');
 }
 
 function showError(message) {
@@ -417,20 +472,17 @@ function downloadCSV() {
     if (appState.config.global.strategy === 'smart') {
         configData.push(["Total Budget", appState.config.global.totalBudget]);
     } 
-    // Always log the payment values (either Planned or Min EMI depending on context)
     appState.config.loans.forEach(loan => {
         configData.push([`${loan.name} Payment`, loan.payment]);
         configData.push([`${loan.name} Principal`, loan.principal]);
         configData.push([`${loan.name} ROI`, loan.roi]);
     });
 
-    // Fix: Loop through the maximum length to ensure neither config nor schedule gets truncated
     const maxRows = Math.max(configData.length, appState.schedule.length);
 
     for (let i = 0; i < maxRows; i++) {
         let row = [];
         
-        // Push config if it exists for this row
         if (i < configData.length) {
             row.push(configData[i][0], configData[i][1]);
         } else {
@@ -439,7 +491,6 @@ function downloadCSV() {
         
         row.push(""); 
 
-        // Push schedule if it exists for this row
         if (i < appState.schedule.length) {
             const month = appState.schedule[i];
             row.push(month.dateString, month.combined.opening, month.combined.interest, month.combined.principalPaid, month.combined.closing);
@@ -454,7 +505,6 @@ function downloadCSV() {
                 }
             });
         } else {
-            // Buffer empty spaces if schedule is done but config is still printing
             row.push("", "", "", "", "");
             appState.config.loans.forEach(() => {
                 row.push("", "", "", "", "", "");
