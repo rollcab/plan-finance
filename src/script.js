@@ -112,10 +112,10 @@ function calculateSchedule() {
     appState.config = config;
     appState.schedule = schedule;
 
-    renderTable(schedule, totalInterestPaid);
+    renderTable(schedule);
 }
 
-function renderTable(schedule, totalInterestPaid) {
+function renderTable(schedule) {
     const tbody = document.getElementById('scheduleBody');
     tbody.innerHTML = ''; 
 
@@ -124,12 +124,22 @@ function renderTable(schedule, totalInterestPaid) {
     const currentRealYear = now.getFullYear();
     const currentRealMonth = now.getMonth();
 
+    let interestAlreadyPaid = 0;
+    let interestToBePaid = 0;
+    let overallInterestPaid = 0;
+
     schedule.forEach(row => {
         const tr = document.createElement('tr');
+        const rowInterest = parseFloat(row.interest);
         
-        // Highlight logic: if the row's date is in the past or is the current month
+        overallInterestPaid += rowInterest;
+        
+        // Highlight logic and interest splitting
         if (row.year < currentRealYear || (row.year === currentRealYear && row.month <= currentRealMonth)) {
             tr.classList.add('past-row');
+            interestAlreadyPaid += rowInterest;
+        } else {
+            interestToBePaid += rowInterest;
         }
 
         tr.innerHTML = `
@@ -144,7 +154,11 @@ function renderTable(schedule, totalInterestPaid) {
 
     const finalDate = schedule[schedule.length - 1].dateString;
     document.getElementById('closureDate').textContent = finalDate;
-    document.getElementById('totalInterest').textContent = Number(totalInterestPaid.toFixed(2)).toLocaleString('en-IN');
+    
+    // Update the new breakdown UI
+    document.getElementById('interestPaid').textContent = Number(interestAlreadyPaid.toFixed(2)).toLocaleString('en-IN');
+    document.getElementById('interestRemaining').textContent = Number(interestToBePaid.toFixed(2)).toLocaleString('en-IN');
+    document.getElementById('totalInterest').textContent = Number(overallInterestPaid.toFixed(2)).toLocaleString('en-IN');
 }
 
 function showError(message) {
