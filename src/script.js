@@ -1,19 +1,16 @@
 let appState = {
     baseFileName: "portfolio_config",
     config: { global: {}, loans: [] },
-    schedule: [] // Array of month objects, each containing { date, combined: {}, loans: {} }
+    schedule: [] 
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialize Defaults
     const now = new Date();
     document.getElementById('startMonth').value = now.getMonth();
     document.getElementById('startYear').value = now.getFullYear();
 
-    // Add first empty loan
     addLoanCard();
 
-    // 2. Theme Toggling
     const themeToggleBtn = document.getElementById('themeToggle');
     const sunIcon = document.getElementById('sunIcon');
     const moonIcon = document.getElementById('moonIcon');
@@ -30,20 +27,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 3. UI Event Listeners
     document.getElementById('addLoanBtn').addEventListener('click', addLoanCard);
     
-    // Toggle manual vs smart mode inputs
+    // Toggle manual vs smart mode inputs & labels
     document.getElementById('strategyMode').addEventListener('change', (e) => {
         const totalBudgetGroup = document.getElementById('totalBudgetGroup');
-        const manualPaymentGroups = document.querySelectorAll('.manual-payment-group');
+        const dynamicLabels = document.querySelectorAll('.dynamic-payment-label');
         
         if (e.target.value === 'smart') {
             totalBudgetGroup.classList.remove('hidden');
-            manualPaymentGroups.forEach(el => el.classList.add('hidden'));
+            dynamicLabels.forEach(label => label.textContent = "Minimum EMI (₹)");
         } else {
             totalBudgetGroup.classList.add('hidden');
-            manualPaymentGroups.forEach(el => el.classList.remove('hidden'));
+            dynamicLabels.forEach(label => label.textContent = "Planned Payment (₹)");
         }
     });
 
@@ -67,10 +63,9 @@ function addLoanCard(loanData = null) {
         loanCard.remove();
     });
 
-    // If we are in smart mode, hide the individual payment input on new cards
-    if (document.getElementById('strategyMode').value === 'smart') {
-        loanCard.querySelector('.manual-payment-group').classList.add('hidden');
-    }
+    // Sync the label based on current mode
+    const mode = document.getElementById('strategyMode').value;
+    loanCard.querySelector('.dynamic-payment-label').textContent = mode === 'smart' ? "Minimum EMI (₹)" : "Planned Payment (₹)";
 
     if (loanData) {
         loanCard.querySelector('.loan-name-input').value = loanData.name || '';
@@ -96,7 +91,7 @@ function gatherInputs() {
     const cards = document.querySelectorAll('.loan-card');
     cards.forEach((card, index) => {
         config.loans.push({
-            id: `loan_${index}`, // Unique ID for tracking
+            id: `loan_${index}`,
             name: card.querySelector('.loan-name-input').value || `Loan ${index + 1}`,
             principal: parseFloat(card.querySelector('.loan-principal').value),
             roi: parseFloat(card.querySelector('.loan-roi').value),
@@ -112,12 +107,11 @@ function calculateSchedule() {
     const errorMsg = document.getElementById('error-message');
     const resultsSection = document.getElementById('results');
     
-    // Validation
     if (config.loans.length === 0) {
         showError("Please add at least one loan."); return;
     }
     for (let loan of config.loans) {
-        if (isNaN(loan.principal) || isNaN(loan.roi) || (config.global.strategy === 'manual' && isNaN(loan.payment))) {
+        if (isNaN(loan.principal) || isNaN(loan.roi) || isNaN(loan.payment)) {
             showError("Please fill in all numerical fields for your loans."); return;
         }
     }
@@ -125,16 +119,15 @@ function calculateSchedule() {
         showError("Please enter a total monthly budget for Smart Allocation."); return;
     }
 
-    // Initialize state
     let activeLoans = config.loans.map(l => ({ ...l, remaining: l.principal }));
     let schedule = [];
     let currentMonth = config.global.startMonth;
     let currentYear = config.global.startYear;
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     let isFinished = false;
-    let safetyCounter = 0; // Prevent infinite loops if payments don't cover interest
+    let safetyCounter = 0; 
 
-    while (!isFinished && safetyCounter < 1200) { // Max 100 years
+    while (!isFinished && safetyCounter < 1200) { 
         safetyCounter++;
         let monthData = {
             dateString: `${monthNames[currentMonth]} ${currentYear}`,
@@ -144,55 +137,53 @@ function calculateSchedule() {
             loans: {}
         };
 
-        // Pre-calculate interest for all active loans to check viability
-        let totalInterestThisMonth = 0;
-        activeLoans.forEach(loan => {
-            if (loan.remaining > 0) {
-                totalInterestThisMonth += loan.remaining * (loan.roi / 12 / 100);
-            }
-        });
-
-        // Allocation Logic
         if (config.global.strategy === 'smart') {
-            if (config.global.totalBudget <= totalInterestThisMonth) {
-                showError(`Your total budget (₹${config.global.totalBudget}) does not cover the combined monthly interest (₹${totalInterestThisMonth.toFixed(2)}). Portfolio will never close.`);
-                return;
-            }
+            let totalEMIThisMonth = 0;
+            let anyError = false;
 
-            let budgetLeft = config.global.totalBudget;
-            
-            // 1. Pay all interest first to stop growth
+            // 1. Calculate EMIs and Interests
             activeLoans.forEach(loan => {
                 if (loan.remaining > 0) {
                     let interest = loan.remaining * (loan.roi / 12 / 100);
                     loan.currentMonthInterest = interest;
-                    loan.currentMonthPayment = interest; // Start by paying just the interest
-                    budgetLeft -= interest;
+
+                    if (loan.payment < interest) {
+                        showError(`Minimum EMI for ${loan.name} (₹${loan.payment}) doesn't cover interest (₹${interest.toFixed(2)}).`);
+                        anyError = true; return;
+                    }
+
+                    let requiredPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
+                    loan.currentMonthPayment = requiredPayment;
+                    totalEMIThisMonth += requiredPayment;
                 }
             });
 
-            // 2. Sort by highest ROI for avalanche
-            let priorityLoans = [...activeLoans].filter(l => l.remaining > 0).sort((a, b) => b.roi - a.roi);
+            if (anyError) return;
+
+            if (config.global.totalBudget < totalEMIThisMonth) {
+                showError(`Your total budget (₹${config.global.totalBudget}) does not cover the combined Minimum EMIs (₹${totalEMIThisMonth.toFixed(2)}).`);
+                return;
+            }
+
+            let budgetLeft = config.global.totalBudget - totalEMIThisMonth;
             
-            // 3. Dump remaining budget into highest priority until paid off, then cascade
+            // 2. Sort by highest ROI for avalanche and dump the remainder
+            let priorityLoans = [...activeLoans].filter(l => l.remaining > 0).sort((a, b) => b.roi - a.roi);
             for (let loan of priorityLoans) {
                 if (budgetLeft <= 0) break;
                 
-                // How much principal is left on this loan?
-                let principalToClear = loan.remaining;
-                if (budgetLeft >= principalToClear) {
-                    // Pay it off completely and keep the change for the next loan
-                    loan.currentMonthPayment += principalToClear;
-                    budgetLeft -= principalToClear;
+                let principalLeftAfterEMI = (loan.remaining + loan.currentMonthInterest) - loan.currentMonthPayment;
+                if (budgetLeft >= principalLeftAfterEMI) {
+                    loan.currentMonthPayment += principalLeftAfterEMI;
+                    budgetLeft -= principalLeftAfterEMI;
                 } else {
-                    // Dump all remaining budget into this loan
                     loan.currentMonthPayment += budgetLeft;
                     budgetLeft = 0;
                 }
             }
 
         } else {
-            // Manual Mode: Just use the assigned payment
+            // Manual Mode
             activeLoans.forEach(loan => {
                 if (loan.remaining > 0) {
                     let interest = loan.remaining * (loan.roi / 12 / 100);
@@ -200,20 +191,15 @@ function calculateSchedule() {
                     
                     if (loan.payment <= interest) {
                         showError(`Payment for ${loan.name} (₹${loan.payment}) doesn't cover interest (₹${interest.toFixed(2)}).`);
-                        return; // Exits logic
+                        return; 
                     }
-                    
-                    // Cap payment if loan is ending
                     loan.currentMonthPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
                 }
             });
-            // Stop if an error was shown
             if (!document.getElementById('error-message').classList.contains('hidden')) return; 
         }
 
-        // Apply Payments and Record State
         let anyLoanActive = false;
-
         activeLoans.forEach(loan => {
             if (loan.remaining > 0) {
                 anyLoanActive = true;
@@ -222,9 +208,8 @@ function calculateSchedule() {
                 let opening = loan.remaining;
                 
                 loan.remaining -= principalPaid;
-                if(loan.remaining < 0.01) loan.remaining = 0; // Float precision fix
+                if(loan.remaining < 0.01) loan.remaining = 0;
 
-                // Record individual
                 monthData.loans[loan.id] = {
                     opening: opening.toFixed(2),
                     interest: interest.toFixed(2),
@@ -232,13 +217,11 @@ function calculateSchedule() {
                     closing: loan.remaining.toFixed(2)
                 };
 
-                // Accumulate combined
                 monthData.combined.opening += opening;
                 monthData.combined.interest += interest;
                 monthData.combined.principalPaid += principalPaid;
                 monthData.combined.closing += loan.remaining;
             } else {
-                // Loan is already paid off, record zeroes
                 monthData.loans[loan.id] = { opening: "0.00", interest: "0.00", principalPaid: "0.00", closing: "0.00" };
             }
         });
@@ -246,7 +229,6 @@ function calculateSchedule() {
         if (!anyLoanActive) {
             isFinished = true;
         } else {
-            // Format combined totals
             monthData.combined.opening = monthData.combined.opening.toFixed(2);
             monthData.combined.interest = monthData.combined.interest.toFixed(2);
             monthData.combined.principalPaid = monthData.combined.principalPaid.toFixed(2);
@@ -269,7 +251,6 @@ function calculateSchedule() {
     appState.config = config;
     appState.schedule = schedule;
 
-    // Update Dropdown UI
     const viewSelector = document.getElementById('viewSelector');
     viewSelector.innerHTML = '<option value="combined">Combined Portfolio Overview</option>';
     config.loans.forEach(loan => {
@@ -300,21 +281,21 @@ function renderTable() {
         const tr = document.createElement('tr');
         const rowAbsoluteMonth = (row.year * 12) + row.month;
         
-        // Pick data based on dropdown selection
+        // 1. Calculate Summary Totals ALWAYS using combined data
+        const combinedInterest = parseFloat(row.combined.interest);
+        overallInterestPaid += combinedInterest;
+        if (rowAbsoluteMonth <= currentAbsoluteMonth) {
+            interestAlreadyPaid += combinedInterest;
+        } else {
+            interestToBePaid += combinedInterest;
+        }
+
+        // 2. Render Table Rows based on dropdown selection
         let displayData = viewId === 'combined' ? row.combined : row.loans[viewId];
         
-        // If the specific loan has ended, don't render empty trailing rows in individual view
         if (viewId !== 'combined' && parseFloat(displayData.opening) === 0) return;
 
-        const rowInterest = parseFloat(displayData.interest);
-        overallInterestPaid += rowInterest;
-        
-        if (rowAbsoluteMonth <= currentAbsoluteMonth) {
-            tr.classList.add('past-row');
-            interestAlreadyPaid += rowInterest;
-        } else {
-            interestToBePaid += rowInterest;
-        }
+        if (rowAbsoluteMonth <= currentAbsoluteMonth) tr.classList.add('past-row');
 
         tr.innerHTML = `
             <td>${row.dateString}</td>
@@ -326,15 +307,8 @@ function renderTable() {
         tbody.appendChild(tr);
     });
 
-    // Update Summary Header (always shows combined summary logic for context)
-    let finalRow = appState.schedule[appState.schedule.length - 1];
-    
-    // If viewing a specific loan, find *its* actual end date
-    if (viewId !== 'combined') {
-        const specificLoanRows = appState.schedule.filter(r => parseFloat(r.loans[viewId].opening) > 0);
-        if(specificLoanRows.length > 0) finalRow = specificLoanRows[specificLoanRows.length - 1];
-    }
-
+    // Update Summary Header (always shows combined summary)
+    const finalRow = appState.schedule[appState.schedule.length - 1];
     document.getElementById('closureDate').textContent = finalRow.dateString;
     document.getElementById('interestPaid').textContent = Number(interestAlreadyPaid.toFixed(2)).toLocaleString('en-IN');
     document.getElementById('interestRemaining').textContent = Number(interestToBePaid.toFixed(2)).toLocaleString('en-IN');
@@ -348,7 +322,6 @@ function showError(message) {
     errorMsg.classList.remove('hidden');
 }
 
-// --- Helper Functions ---
 function getFormattedTimestamp() {
     const now = new Date();
     const pad = (num) => String(num).padStart(2, '0');
@@ -356,7 +329,6 @@ function getFormattedTimestamp() {
 }
 
 // --- Import / Export Features ---
-
 function exportJSON() {
     const config = gatherInputs();
     const timestamp = getFormattedTimestamp();
@@ -400,27 +372,23 @@ function importJSON(event) {
         try {
             const config = JSON.parse(e.target.result);
             
-            // Set global
             if (config.global) {
                 if(config.global.startMonth !== undefined) document.getElementById('startMonth').value = config.global.startMonth;
                 if(config.global.startYear) document.getElementById('startYear').value = config.global.startYear;
                 if(config.global.strategy) {
                     document.getElementById('strategyMode').value = config.global.strategy;
-                    // trigger change event to update UI
                     document.getElementById('strategyMode').dispatchEvent(new Event('change')); 
                 }
                 if(config.global.totalBudget) document.getElementById('totalBudget').value = config.global.totalBudget;
             }
 
-            // Clear existing and set loans
             document.getElementById('loanList').innerHTML = '';
             if (config.loans && config.loans.length > 0) {
                 config.loans.forEach(loan => addLoanCard(loan));
                 calculateSchedule();
             } else {
-                addLoanCard(); // add empty if none
+                addLoanCard(); 
             }
-
         } catch (error) {
             alert("Invalid JSON file");
         }
@@ -432,18 +400,15 @@ function importJSON(event) {
 function downloadCSV() {
     if (appState.schedule.length === 0) return;
 
-    // Build a 2D Array for the CSV
     let csvRows = [];
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     
-    // Build Headers
     let headerRow = ["Config Key", "Config Value", "", "COMBINED Date", "Opening Principal", "Interest Portion", "Principal Portion", "Closing Principal"];
     appState.config.loans.forEach(loan => {
         headerRow.push("", `${loan.name.toUpperCase()} Date`, "Opening Principal", "Interest Portion", "Principal Portion", "Closing Principal");
     });
     csvRows.push(headerRow);
 
-    // Prepare Config Data for the left columns
     let configData = [
         ["Start Month", monthNames[appState.config.global.startMonth]],
         ["Start Year", appState.config.global.startYear],
@@ -451,55 +416,61 @@ function downloadCSV() {
     ];
     if (appState.config.global.strategy === 'smart') {
         configData.push(["Total Budget", appState.config.global.totalBudget]);
-    } else {
-        appState.config.loans.forEach(loan => configData.push([`${loan.name} Payment`, loan.payment]));
-    }
+    } 
+    // Always log the payment values (either Planned or Min EMI depending on context)
     appState.config.loans.forEach(loan => {
+        configData.push([`${loan.name} Payment`, loan.payment]);
         configData.push([`${loan.name} Principal`, loan.principal]);
         configData.push([`${loan.name} ROI`, loan.roi]);
     });
 
-    // Build Data Rows
-    appState.schedule.forEach((month, index) => {
+    // Fix: Loop through the maximum length to ensure neither config nor schedule gets truncated
+    const maxRows = Math.max(configData.length, appState.schedule.length);
+
+    for (let i = 0; i < maxRows; i++) {
         let row = [];
         
-        // Add config data or empty strings if we ran out of config rows
-        if (index < configData.length) {
-            row.push(configData[index][0], configData[index][1]);
+        // Push config if it exists for this row
+        if (i < configData.length) {
+            row.push(configData[i][0], configData[i][1]);
         } else {
             row.push("", "");
         }
         
-        // Space
-        row.push("");
+        row.push(""); 
 
-        // Combined Data
-        row.push(month.dateString, month.combined.opening, month.combined.interest, month.combined.principalPaid, month.combined.closing);
+        // Push schedule if it exists for this row
+        if (i < appState.schedule.length) {
+            const month = appState.schedule[i];
+            row.push(month.dateString, month.combined.opening, month.combined.interest, month.combined.principalPaid, month.combined.closing);
 
-        // Individual Loan Data
-        appState.config.loans.forEach(loanConfig => {
-            row.push(""); // Spacing
-            const lData = month.loans[loanConfig.id];
-            if (lData) {
-                row.push(month.dateString, lData.opening, lData.interest, lData.principalPaid, lData.closing);
-            } else {
-                row.push("", "", "", "", ""); // Should not happen, but safe fallback
-            }
-        });
+            appState.config.loans.forEach(loanConfig => {
+                row.push(""); 
+                const lData = month.loans[loanConfig.id];
+                if (lData) {
+                    row.push(month.dateString, lData.opening, lData.interest, lData.principalPaid, lData.closing);
+                } else {
+                    row.push("", "", "", "", ""); 
+                }
+            });
+        } else {
+            // Buffer empty spaces if schedule is done but config is still printing
+            row.push("", "", "", "", "");
+            appState.config.loans.forEach(() => {
+                row.push("", "", "", "", "", "");
+            });
+        }
 
         csvRows.push(row);
-    });
+    }
 
-    // Convert 2D array to CSV string safely
     const csvContent = csvRows.map(row => 
         row.map(cell => {
-            // Escape quotes and wrap in quotes if there's a comma
             let cellStr = String(cell).replace(/"/g, '""');
             return cellStr.includes(',') || cellStr.includes('\n') ? `"${cellStr}"` : cellStr;
         }).join(",")
-    ).join("\n"); // Proper newline
+    ).join("\n"); 
 
-    // Trigger download using a Blob (Fixes the newline bug)
     const timestamp = getFormattedTimestamp();
     const defaultCsvName = `${appState.baseFileName}_schedule.${timestamp}.csv`;
     const finalFileName = prompt("Save CSV as:", defaultCsvName);
@@ -514,5 +485,5 @@ function downloadCSV() {
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     document.body.removeChild(downloadAnchorNode);
-    URL.revokeObjectURL(url); // Clean up memory
+    URL.revokeObjectURL(url); 
 }
