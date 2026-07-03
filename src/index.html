@@ -75,15 +75,13 @@
 
             <section id="results" class="hidden">
                 <div class="summary-card">
-                    <div class="summary-text">
-                        <h2>Portfolio Debt-Free Date: <span id="closureDate" class="highlight"></span></h2>
-                        <div class="interest-breakdown">
-                            <p>Interest Already Paid: ₹<span id="interestPaid">0</span></p>
-                            <p>Interest To Be Paid: ₹<span id="interestRemaining">0</span></p>
-                            <p><strong>Overall Interest: ₹<span id="totalInterest">0</span></strong></p>
-                        </div>
+                    <div class="summary-header">
+                        <h2>Portfolio Dashboard</h2>
+                        <button id="downloadCsvBtn" class="btn-outline">Download CSV</button>
                     </div>
-                    <button id="downloadCsvBtn" class="btn-outline">Download CSV</button>
+                    
+                    <div id="portfolioSummaryContainer" class="portfolio-summary-container">
+                    </div>
                 </div>
                 
                 <div class="table-controls">
