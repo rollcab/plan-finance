@@ -67,7 +67,11 @@
                 <div class="summary-card">
                     <div class="summary-text">
                         <h2>Estimated Closure: <span id="closureDate"></span></h2>
-                        <p>Total Interest to be Paid: ₹<span id="totalInterest"></span></p>
+                        <div class="interest-breakdown">
+                            <p>Interest Already Paid: ₹<span id="interestPaid">0</span></p>
+                            <p>Interest To Be Paid: ₹<span id="interestRemaining">0</span></p>
+                            <p><strong>Overall Interest: ₹<span id="totalInterest">0</span></strong></p>
+                        </div>
                     </div>
                     <button id="downloadCsvBtn" class="btn-outline">Download CSV</button>
                 </div>
