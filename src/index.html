@@ -71,20 +71,19 @@
                             <option value="smart">Highest ROI First (Avalanche)</option>
                         </select>
                     </div>
-                    <div class="input-group hidden" id="totalBudgetGroup">
+                    <div class="input-group" id="totalBudgetGroup">
                         <label for="totalBudget">Total Monthly Budget (₹)</label>
-                        <input type="number" id="totalBudget" placeholder="e.g., 100000">
+                        <input type="number" id="totalBudget" placeholder="e.g., 100000" class="disabled-input" readonly>
                         <div id="minBudgetNote" class="sub-text highlight hidden">Minimum required to cover EMIs: ₹0</div>
+                        <div id="manualBudgetNote" class="sub-text">In manual mode, this is auto-calculated from your loans and cannot be edited.</div>
                     </div>
                 </div>
 
                 <div class="strategy-descriptions">
                     <h4>Strategy Explanations:</h4>
                     <ul>
-                        <li><strong>Manual Mode:</strong> Directly applies the amount entered in the "Minimum EMI" field for each individual loan. Does not dynamically allocate extra cash.</li>
-                        <li><strong>Equally Split Extra:</strong> Pays all base EMIs first, then takes the remainder of your Total Budget and distributes it evenly across all active loans.</li>
-                        <li><strong>Highest Monthly Interest:</strong> Pays all base EMIs first, then funnels all remaining cash into the loan generating the largest absolute interest charge (₹) that month.</li>
-                        <li><strong>Highest ROI First:</strong> Pays all base EMIs first, then funnels all remaining cash into the loan with the highest percentage interest rate (%). This mathematically guarantees the absolute minimum lifetime interest.</li>
+                        <li><strong>Manual Mode:</strong> Directly applies the amount entered in the "Minimum EMI" field for each individual loan. <br><em class="highlight">Note: Once a loan is paid off, its EMI is NOT magically reallocated to other loans. Your total monthly out-of-pocket budget will naturally decrease over time.</em></li>
+                        <li><strong>Automated Modes (Equally Split, Highest Interest, Highest ROI):</strong> You commit a fixed, continuous <strong>Total Monthly Budget</strong>. <br><em class="highlight">Note: Once a loan is paid off, its payment is aggressively reallocated to the remaining loans until you are completely debt-free. You will pay the same total amount every month until the end.</em></li>
                     </ul>
                 </div>
 
@@ -146,8 +145,9 @@
                     <input type="number" class="loan-roi" placeholder="8.5" step="0.01" required>
                 </div>
                 <div class="input-group payment-input-group">
-                    <label>Minimum EMI (₹)</label>
+                    <label class="dynamic-payment-label">Minimum EMI (₹)</label>
                     <input type="number" class="loan-payment emi-tracker" placeholder="e.g., 25000" required>
+                    <div class="loan-min-note sub-text highlight hidden"></div>
                 </div>
             </div>
         </div>
