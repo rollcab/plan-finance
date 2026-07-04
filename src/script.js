@@ -1,7 +1,8 @@
 let appState = {
     baseFileName: "portfolio_config",
     config: { global: {}, loans: [] },
-    schedule: [] 
+    schedule: [],
+    previousTotalInterest: null // NEW: Track the previous calculation
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,7 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalBudgetGroup = document.getElementById('totalBudgetGroup');
         const dynamicLabels = document.querySelectorAll('.dynamic-payment-label');
         
-        if (e.target.value === 'smart') {
+        // Both algorithmic strategies require the total budget and EMI inputs
+        if (e.target.value === 'smart' || e.target.value === 'highest_interest') {
             totalBudgetGroup.classList.remove('hidden');
             dynamicLabels.forEach(label => label.textContent = "Minimum EMI (₹)");
         } else {
@@ -63,7 +65,7 @@ function addLoanCard(loanData = null) {
     });
 
     const mode = document.getElementById('strategyMode').value;
-    loanCard.querySelector('.dynamic-payment-label').textContent = mode === 'smart' ? "Minimum EMI (₹)" : "Planned Payment (₹)";
+    loanCard.querySelector('.dynamic-payment-label').textContent = (mode === 'smart' || mode === 'highest_interest') ? "Minimum EMI (₹)" : "Planned Payment (₹)";
 
     if (loanData) {
         loanCard.querySelector('.loan-name-input').value = loanData.name || '';
@@ -113,8 +115,15 @@ function calculateSchedule() {
             showError("Please fill in all numerical fields for your loans."); return;
         }
     }
-    if (config.global.strategy === 'smart' && isNaN(config.global.totalBudget)) {
-        showError("Please enter a total monthly budget for Smart Allocation."); return;
+    if ((config.global.strategy === 'smart' || config.global.strategy === 'highest_interest') && isNaN(config.global.totalBudget)) {
+        showError("Please enter a total monthly budget for automated allocation."); return;
+    }
+
+    // NEW: Capture the previous run's total interest before wiping the schedule
+    if (appState.schedule && appState.schedule.length > 0) {
+        let prevTotal = 0;
+        appState.schedule.forEach(row => prevTotal += parseFloat(row.combined.interest));
+        appState.previousTotalInterest = prevTotal;
     }
 
     let activeLoans = config.loans.map(l => ({ ...l, remaining: l.principal }));
@@ -135,7 +144,7 @@ function calculateSchedule() {
             loans: {}
         };
 
-        if (config.global.strategy === 'smart') {
+        if (config.global.strategy === 'smart' || config.global.strategy === 'highest_interest') {
             let totalEMIThisMonth = 0;
             let anyError = false;
 
@@ -164,7 +173,16 @@ function calculateSchedule() {
 
             let budgetLeft = config.global.totalBudget - totalEMIThisMonth;
             
-            let priorityLoans = [...activeLoans].filter(l => l.remaining > 0).sort((a, b) => b.roi - a.roi);
+            // NEW: Sort logically based on the selected strategy
+            let priorityLoans = [...activeLoans].filter(l => l.remaining > 0);
+            if (config.global.strategy === 'smart') {
+                // Avalanche: Highest ROI (%)
+                priorityLoans.sort((a, b) => b.roi - a.roi);
+            } else if (config.global.strategy === 'highest_interest') {
+                // Absolute: Highest Interest Paid (₹)
+                priorityLoans.sort((a, b) => b.currentMonthInterest - a.currentMonthInterest);
+            }
+            
             for (let loan of priorityLoans) {
                 if (budgetLeft <= 0) break;
                 
@@ -301,6 +319,26 @@ function updateSummaries() {
         });
     });
 
+    // NEW: Calculate the comparison badge
+    let comparisonHTML = '';
+    if (appState.previousTotalInterest !== null) {
+        const diff = summaryData.combined.total - appState.previousTotalInterest;
+        if (Math.abs(diff) > 0.01) { // Ignore tiny float rounding differences
+            const percent = ((diff / appState.previousTotalInterest) * 100).toFixed(2);
+            const isWorse = diff > 0;
+            const sign = isWorse ? '+' : '';
+            const colorClass = isWorse ? 'error-text' : 'success-text';
+            
+            comparisonHTML = `
+                <div class="comparison-badge ${colorClass}">
+                    ${sign}₹${fmt(Math.abs(diff))} (${sign}${percent}%) vs previous run
+                </div>
+            `;
+        } else {
+             comparisonHTML = `<div class="comparison-badge" style="color:var(--text-color);">No change in interest paid.</div>`;
+        }
+    }
+
     const container = document.getElementById('portfolioSummaryContainer');
     container.innerHTML = '';
 
@@ -311,6 +349,7 @@ function updateSummaries() {
                 <p>Interest Already Paid: ₹${fmt(summaryData.combined.paid)}</p>
                 <p>Interest To Be Paid: ₹${fmt(summaryData.combined.remain)}</p>
                 <p><strong>Overall Interest: ₹${fmt(summaryData.combined.total)}</strong></p>
+                ${comparisonHTML}
             </div>
         </div>
     `;
@@ -379,7 +418,6 @@ function getFormattedTimestamp() {
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 }
 
-// --- Import / Export Features ---
 function exportJSON() {
     const config = gatherInputs();
     const timestamp = getFormattedTimestamp();
@@ -463,9 +501,9 @@ function downloadCSV() {
     let configData = [
         ["Start Month", monthNames[appState.config.global.startMonth]],
         ["Start Year", appState.config.global.startYear],
-        ["Strategy", appState.config.global.strategy === 'smart' ? 'Smart (Highest ROI)' : 'Manual'],
+        ["Strategy", document.getElementById('strategyMode').options[document.getElementById('strategyMode').selectedIndex].text],
     ];
-    if (appState.config.global.strategy === 'smart') {
+    if (appState.config.global.strategy === 'smart' || appState.config.global.strategy === 'highest_interest') {
         configData.push(["Total Budget", appState.config.global.totalBudget]);
     } 
     appState.config.loans.forEach(loan => {
@@ -501,7 +539,6 @@ function downloadCSV() {
                 }
             });
         } else {
-            // Buffer spaces for when schedule is done but config is still printing
             row.push("", "", "", "", "", "");
             appState.config.loans.forEach(() => {
                 row.push("", "", "", "", "", "", "");
