@@ -2,7 +2,7 @@ let appState = {
     baseFileName: "portfolio_config",
     config: { global: {}, loans: [] },
     schedule: [],
-    simulations: {} // Stores the summary output of ALL strategies
+    simulations: {} 
 };
 
 const STRATEGY_NAMES = {
@@ -38,16 +38,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('addLoanBtn').addEventListener('click', addLoanCard);
     
     document.getElementById('strategyMode').addEventListener('change', (e) => {
-        const totalBudgetGroup = document.getElementById('totalBudgetGroup');
+        const tbInput = document.getElementById('totalBudget');
+        const manualNote = document.getElementById('manualBudgetNote');
+        const minNote = document.getElementById('minBudgetNote');
+        
         if (e.target.value === 'manual') {
-            totalBudgetGroup.classList.add('hidden');
+            tbInput.readOnly = true;
+            tbInput.classList.add('disabled-input');
+            manualNote.classList.remove('hidden');
+            minNote.classList.add('hidden');
         } else {
-            totalBudgetGroup.classList.remove('hidden');
+            tbInput.readOnly = false;
+            tbInput.classList.remove('disabled-input');
+            manualNote.classList.add('hidden');
         }
+        updateMinBudgetDisplay();
     });
 
-    // Listen to changes in loan list to auto-calculate required minimum budget
-    document.getElementById('loanList').addEventListener('input', updateMinBudgetDisplay);
+    document.getElementById('loanList').addEventListener('input', (e) => {
+        updateMinBudgetDisplay();
+        
+        // Target the specific card if Principal or ROI changed
+        if (e.target.classList.contains('loan-principal') || e.target.classList.contains('loan-roi')) {
+            const card = e.target.closest('.loan-card');
+            updateLoanMinNote(card);
+        }
+    });
 
     document.getElementById('viewSelector').addEventListener('change', renderTable);
     document.getElementById('calculateBtn').addEventListener('click', handleCalculate);
@@ -60,6 +76,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+function updateLoanMinNote(card) {
+    const principal = parseFloat(card.querySelector('.loan-principal').value);
+    const roi = parseFloat(card.querySelector('.loan-roi').value);
+    const noteEl = card.querySelector('.loan-min-note');
+    
+    if (!isNaN(principal) && !isNaN(roi) && principal > 0) {
+        const minRequired = Math.ceil((principal * (roi / 12 / 100)) + 1);
+        noteEl.textContent = `To become debt free, you should pay a minimum of ₹${minRequired.toLocaleString('en-IN')}`;
+        noteEl.classList.remove('hidden');
+    } else {
+        noteEl.classList.add('hidden');
+    }
+}
+
 function updateMinBudgetDisplay() {
     let totalEmi = 0;
     document.querySelectorAll('.emi-tracker').forEach(input => {
@@ -67,12 +97,19 @@ function updateMinBudgetDisplay() {
         if (!isNaN(val)) totalEmi += val;
     });
     
+    const mode = document.getElementById('strategyMode').value;
+    const tbInput = document.getElementById('totalBudget');
     const noteEl = document.getElementById('minBudgetNote');
-    if (totalEmi > 0) {
-        noteEl.textContent = `Minimum required to cover EMIs: ₹${totalEmi.toLocaleString('en-IN')}`;
-        noteEl.classList.remove('hidden');
+
+    if (mode === 'manual') {
+        tbInput.value = totalEmi; 
     } else {
-        noteEl.classList.add('hidden');
+        if (totalEmi > 0) {
+            noteEl.textContent = `Minimum required to cover EMIs: ₹${totalEmi.toLocaleString('en-IN')}`;
+            noteEl.classList.remove('hidden');
+        } else {
+            noteEl.classList.add('hidden');
+        }
     }
 }
 
@@ -91,6 +128,7 @@ function addLoanCard(loanData = null) {
         loanCard.querySelector('.loan-principal').value = loanData.principal || '';
         loanCard.querySelector('.loan-roi').value = loanData.roi || '';
         loanCard.querySelector('.loan-payment').value = loanData.payment || '';
+        updateLoanMinNote(loanCard);
     }
 
     document.getElementById('loanList').appendChild(loanCard);
@@ -121,7 +159,6 @@ function gatherInputs() {
     return config;
 }
 
-// Master Controller: Validates and coordinates simulations
 function handleCalculate() {
     const config = gatherInputs();
     const errorMsg = document.getElementById('error-message');
@@ -136,6 +173,12 @@ function handleCalculate() {
         if (isNaN(loan.principal) || isNaN(loan.roi) || isNaN(loan.payment)) {
             showError("Please fill in all numerical fields for your loans."); return;
         }
+        
+        const absoluteMin = Math.ceil((loan.principal * (loan.roi / 12 / 100)) + 1);
+        if (loan.payment < absoluteMin) {
+            showError(`Payment for ${loan.name} (₹${loan.payment}) is too low. You must pay at least ₹${absoluteMin} to cover interest and reduce the principal.`); return;
+        }
+        
         baseEmiTotal += loan.payment;
     }
 
@@ -144,23 +187,19 @@ function handleCalculate() {
         return;
     }
 
-    // 1. Run simulation for the specific strategy the user selected
     const mainResult = runSimulation(config, config.global.strategy);
     if (mainResult.error) {
-        showError(mainResult.error);
-        return;
+        showError(mainResult.error); return;
     }
 
     appState.config = config;
     appState.schedule = mainResult.schedule;
     appState.simulations = {};
     
-    // 2. Run background simulations for ALL 4 strategies to populate comparisons
-    // If user is in manual mode but didn't provide a total budget, we simulate the automated ones using their Manual EMI total as the budget limit.
     const simulationBudget = Math.max(config.global.totalBudget, baseEmiTotal);
     
     Object.keys(STRATEGY_NAMES).forEach(strategyKey => {
-        let simConfig = JSON.parse(JSON.stringify(config)); // Deep copy
+        let simConfig = JSON.parse(JSON.stringify(config)); 
         simConfig.global.strategy = strategyKey;
         simConfig.global.totalBudget = simulationBudget; 
         
@@ -186,7 +225,6 @@ function handleCalculate() {
     renderTable();
 }
 
-// Core Engine: Calculates a schedule based strictly on the provided config and strategy string
 function runSimulation(config, strategyType) {
     let activeLoans = config.loans.map(l => ({ ...l, remaining: l.principal }));
     let schedule = [];
@@ -209,15 +247,11 @@ function runSimulation(config, strategyType) {
         if (strategyType !== 'manual') {
             let totalEMIThisMonth = 0;
             
-            // 1. Pay all minimum EMIs
             for (let loan of activeLoans) {
                 if (loan.remaining > 0) {
                     let interest = loan.remaining * (loan.roi / 12 / 100);
                     loan.currentMonthInterest = interest;
 
-                    if (loan.payment < interest) {
-                        return { error: `Minimum EMI for ${loan.name} (₹${loan.payment}) doesn't cover interest (₹${interest.toFixed(2)}).` };
-                    }
                     let requiredPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
                     loan.currentMonthPayment = requiredPayment;
                     totalEMIThisMonth += requiredPayment;
@@ -225,12 +259,9 @@ function runSimulation(config, strategyType) {
             }
 
             let budgetLeft = config.global.totalBudget - totalEMIThisMonth;
-            
-            // 2. Allocate the Extra Budget based on Strategy
             let priorityLoans = [...activeLoans].filter(l => (l.remaining + l.currentMonthInterest - l.currentMonthPayment) > 0.01);
             
             if (strategyType === 'equal' && budgetLeft > 0) {
-                // Split logic: Divide remaining budget equally. If a loan caps out, redistribute.
                 while (budgetLeft > 0.01 && priorityLoans.length > 0) {
                     let splitAmount = budgetLeft / priorityLoans.length;
                     let budgetSpentThisRound = 0;
@@ -249,11 +280,10 @@ function runSimulation(config, strategyType) {
                     }
                     budgetLeft -= budgetSpentThisRound;
                     priorityLoans = stillNeedingExtra;
-                    if (budgetSpentThisRound < 0.01) break; // Float protection
+                    if (budgetSpentThisRound < 0.01) break; 
                 }
 
             } else if ((strategyType === 'smart' || strategyType === 'highest_interest') && budgetLeft > 0) {
-                // Waterfall logic
                 if (strategyType === 'smart') {
                     priorityLoans.sort((a, b) => b.roi - a.roi);
                 } else if (strategyType === 'highest_interest') {
@@ -274,21 +304,15 @@ function runSimulation(config, strategyType) {
             }
 
         } else {
-            // Manual Mode: Just use the exact input fields
             for (let loan of activeLoans) {
                 if (loan.remaining > 0) {
                     let interest = loan.remaining * (loan.roi / 12 / 100);
                     loan.currentMonthInterest = interest;
-                    
-                    if (loan.payment <= interest) {
-                        return { error: `Manual Payment for ${loan.name} (₹${loan.payment}) doesn't cover interest (₹${interest.toFixed(2)}).` };
-                    }
                     loan.currentMonthPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
                 }
             }
         }
 
-        // Apply Math and Create Log
         let anyLoanActive = false;
         activeLoans.forEach(loan => {
             if (loan.remaining > 0) {
@@ -327,13 +351,15 @@ function runSimulation(config, strategyType) {
     return { error: null, schedule: schedule };
 }
 
-// Helper to extract totals from a schedule array
 function summarizeSchedule(schedule, config) {
     const now = new Date();
     const currentAbsoluteMonth = (now.getFullYear() * 12) + now.getMonth();
     
-    let data = { combined: { paid: 0, remain: 0, total: 0, date: '' }, loans: {} };
-    config.loans.forEach(l => { data.loans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: '' }; });
+    let data = { combined: { paid: 0, remain: 0, total: 0, date: '', principal: 0 }, loans: {} };
+    config.loans.forEach(l => { 
+        data.loans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: '', principal: l.principal }; 
+        data.combined.principal += l.principal;
+    });
 
     schedule.forEach(row => {
         const rowAbsoluteMonth = (row.year * 12) + row.month;
@@ -364,14 +390,13 @@ function renderSummaries() {
     const selectedStrategy = appState.config.global.strategy;
     const summaryData = appState.simulations[selectedStrategy];
 
-    // Build the dynamic pills for the OTHER strategies
     let pillsHTML = '';
     const currentTotal = summaryData.combined.total;
 
     Object.keys(STRATEGY_NAMES).forEach(key => {
         if (key !== selectedStrategy && appState.simulations[key]) {
             const altTotal = appState.simulations[key].combined.total;
-            const diff = currentTotal - altTotal; // positive means alt strategy is cheaper
+            const diff = currentTotal - altTotal; 
             
             let resultText = `Cost is identical`;
             let colorClass = ``;
@@ -379,11 +404,9 @@ function renderSummaries() {
             if (Math.abs(diff) > 0.1) {
                 const percent = ((Math.abs(diff) / currentTotal) * 100).toFixed(2);
                 if (diff > 0) {
-                    // Current is higher, Alt is Cheaper -> User saves money
                     resultText = `You save ₹${fmt(Math.abs(diff))} (${percent}%)`;
                     colorClass = `success-text`;
                 } else {
-                    // Current is lower, Alt is More Expensive -> User loses money
                     resultText = `You lose ₹${fmt(Math.abs(diff))} (${percent}%)`;
                     colorClass = `error-text`;
                 }
@@ -408,6 +431,8 @@ function renderSummaries() {
         </div>
     `;
 
+    const combinedPercentLost = ((summaryData.combined.total / summaryData.combined.principal) * 100).toFixed(1);
+
     const container = document.getElementById('portfolioSummaryContainer');
     const combinedHTML = `
         <div class="summary-block combined-summary">
@@ -416,6 +441,7 @@ function renderSummaries() {
                 <p>Interest Already Paid: ₹${fmt(summaryData.combined.paid)}</p>
                 <p>Interest To Be Paid: ₹${fmt(summaryData.combined.remain)}</p>
                 <p><strong>Overall Interest: ₹${fmt(summaryData.combined.total)}</strong></p>
+                <p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Money Lost to Interest: ${combinedPercentLost}% of Principal</p>
             </div>
             ${comparisonSection}
         </div>
@@ -424,6 +450,7 @@ function renderSummaries() {
     let individualHTML = '<div class="individual-summaries-grid">';
     appState.config.loans.forEach(l => {
         const d = summaryData.loans[l.id];
+        const percentLost = ((d.total / d.principal) * 100).toFixed(1);
         individualHTML += `
             <div class="summary-block individual-summary">
                 <h4>${d.name} <span class="highlight">(Ends: ${d.date})</span></h4>
@@ -431,6 +458,7 @@ function renderSummaries() {
                     <p>Paid: ₹${fmt(d.paid)}</p>
                     <p>Remaining: ₹${fmt(d.remain)}</p>
                     <p><strong>Total: ₹${fmt(d.total)}</strong></p>
+                    <p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Lost: ${percentLost}% of Principal</p>
                 </div>
             </div>
         `;
