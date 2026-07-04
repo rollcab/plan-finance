@@ -152,3 +152,25 @@ table { width: 100%; border-collapse: collapse; }
 th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
 th { background-color: var(--card-bg); font-weight: 600; white-space: nowrap;}
 .past-row td { background-color: var(--progress-bg); }
+
+/* Comparison Badge Styles */
+.comparison-badge {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+}
+
+.success-text {
+    color: var(--highlight);
+    border-color: var(--highlight);
+}
+
+.error-text {
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
