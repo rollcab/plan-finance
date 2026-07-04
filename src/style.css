@@ -174,3 +174,72 @@ th { background-color: var(--card-bg); font-weight: 600; white-space: nowrap;}
     color: var(--error-color);
     border-color: var(--error-color);
 }
+
+/* Add these new rules to your style.css */
+
+/* Strategy Layout Elements */
+.strategy-descriptions {
+    margin-top: 1.5rem;
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-color);
+    border-left: 4px solid var(--text-color);
+    border-radius: 0 4px 4px 0;
+    font-size: 0.9rem;
+}
+
+.strategy-descriptions h4 {
+    margin-bottom: 0.5rem;
+}
+
+.strategy-descriptions ul {
+    margin-left: 1.25rem;
+}
+
+.strategy-descriptions li {
+    margin-bottom: 0.25rem;
+}
+
+.sub-text {
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+/* Comparison Pills */
+.comparisons-container {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border-color);
+}
+
+.comparisons-container h4 {
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
+.pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.comparison-pill {
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    flex: 1 1 250px; /* Allows pills to flex comfortably */
+}
+
+.pill-title {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+    color: var(--text-color);
+}
+
+.success-text { color: var(--highlight); }
+.error-text { color: var(--error-color); }
