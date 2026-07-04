@@ -5,15 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta property="og:title" content="Loan Portfolio Forecaster">
     <meta property="og:description" content="Calculate and track your loan payoff dates using smart avalanche strategies.">
-    <meta property="og:image" content="https://placehold.co/100x100/2e7d32/white?text=₹">
+    <meta property="og:image" content="https://placehold.co/1200x630/2e7d32/white?text=Loan+Forecaster"> 
     <title>Loan Portfolio Forecaster</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <img src="https://placehold.co/100x100/2e7d32/white?text=₹" alt="App Logo" class="app-logo">
-            <h1>Loan Portfolio Forecaster</h1>
+            <div class="header-title">
+                <img src="https://placehold.co/100x100/2e7d32/white?text=₹" alt="App Logo" class="app-logo">
+                <h1>Loan Portfolio Forecaster</h1>
+            </div>
             <button id="themeToggle" class="btn-icon" aria-label="Toggle Dark Mode">
                 <svg id="sunIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -31,6 +33,15 @@
                     <label for="importConfig" class="btn-outline btn-small file-label">Import (JSON)</label>
                     <input type="file" id="importConfig" accept=".json" class="hidden-file-input">
                 </div>
+            </section>
+
+            <section class="card">
+                <div class="header-with-action">
+                    <h2>Your Loans</h2>
+                    <button id="addLoanBtn" class="btn-outline btn-small">+ Add Loan</button>
+                </div>
+                <div id="loanList" class="loan-list">
+                    </div>
             </section>
 
             <section class="card">
@@ -54,26 +65,29 @@
                     <div class="input-group">
                         <label for="strategyMode">Payment Allocation</label>
                         <select id="strategyMode">
-                            <option value="manual">Manual (Set per loan)</option>
-                            <option value="smart">Smart (Highest ROI First)</option>
+                            <option value="manual">Manual Mode (Set per loan)</option>
+                            <option value="equal">Equally Split Extra Across Loans</option>
                             <option value="highest_interest">Highest Monthly Interest First</option>
+                            <option value="smart">Highest ROI First (Avalanche)</option>
                         </select>
                     </div>
                     <div class="input-group hidden" id="totalBudgetGroup">
                         <label for="totalBudget">Total Monthly Budget (₹)</label>
                         <input type="number" id="totalBudget" placeholder="e.g., 100000">
+                        <div id="minBudgetNote" class="sub-text highlight hidden">Minimum required to cover EMIs: ₹0</div>
                     </div>
                 </div>
-            </section>
 
-            <section class="card">
-                <div class="header-with-action">
-                    <h2>Your Loans</h2>
-                    <button id="addLoanBtn" class="btn-outline btn-small">+ Add Loan</button>
+                <div class="strategy-descriptions">
+                    <h4>Strategy Explanations:</h4>
+                    <ul>
+                        <li><strong>Manual Mode:</strong> Directly applies the amount entered in the "Minimum EMI" field for each individual loan. Does not dynamically allocate extra cash.</li>
+                        <li><strong>Equally Split Extra:</strong> Pays all base EMIs first, then takes the remainder of your Total Budget and distributes it evenly across all active loans.</li>
+                        <li><strong>Highest Monthly Interest:</strong> Pays all base EMIs first, then funnels all remaining cash into the loan generating the largest absolute interest charge (₹) that month.</li>
+                        <li><strong>Highest ROI First:</strong> Pays all base EMIs first, then funnels all remaining cash into the loan with the highest percentage interest rate (%). This mathematically guarantees the absolute minimum lifetime interest.</li>
+                    </ul>
                 </div>
-                <div id="loanList" class="loan-list">
-                    </div>
-                
+
                 <div id="error-message" class="error hidden"></div>
                 <button id="calculateBtn" class="btn-primary" style="margin-top: 1rem;">Calculate Portfolio Progress</button>
             </section>
@@ -86,7 +100,7 @@
                     </div>
                     
                     <div id="portfolioSummaryContainer" class="portfolio-summary-container">
-                    </div>
+                        </div>
                 </div>
                 
                 <div class="table-controls">
@@ -104,7 +118,7 @@
                                 <th>Opening Principal</th>
                                 <th>Interest Portion</th>
                                 <th>Principal Portion</th>
-                                <th>Total Payment</th> 
+                                <th>Total Payment</th>
                                 <th>Closing Principal</th>
                             </tr>
                         </thead>
@@ -132,8 +146,8 @@
                     <input type="number" class="loan-roi" placeholder="8.5" step="0.01" required>
                 </div>
                 <div class="input-group payment-input-group">
-                    <label class="dynamic-payment-label">Planned Payment (₹)</label>
-                    <input type="number" class="loan-payment" placeholder="50000" required>
+                    <label>Minimum EMI (₹)</label>
+                    <input type="number" class="loan-payment emi-tracker" placeholder="e.g., 25000" required>
                 </div>
             </div>
         </div>
