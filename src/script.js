@@ -350,13 +350,19 @@ function handleCalculate() {
             l.payment = l.bankEmi;
         }
     }); 
-    const baselineResult = runSimulation(baselineConfig, 'manual');
-    if (!baselineResult.error) {
-        appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
-    } else {
+    
+    try {
+        const baselineResult = runSimulation(baselineConfig, 'manual');
+        if (!baselineResult.error && baselineResult.schedule && baselineResult.schedule.length > 0) {
+            appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
+        } else {
+            throw new Error(baselineResult.error || 'Empty schedule');
+        }
+    } catch (err) {
+        console.error('Baseline calculation failed:', err);
         const fallbackLoans = {};
         config.loans.forEach(l => {
-            fallbackLoans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: 'N/A', principal: l.principal };
+            fallbackLoans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: 'N/A', principal: l.principal, loanType: l.loanType };
         });
         appState.baselineSummary = { 
             combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: config.loans.reduce((sum, l) => sum + l.principal, 0) }, 
