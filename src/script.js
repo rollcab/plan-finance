@@ -933,22 +933,14 @@ function importJSON(event) {
 
             document.getElementById('loanList').innerHTML = '';
             if (config.loans && config.loans.length > 0) {
-                config.loans.forEach(loan => {
-                    const loanData = {
-                        name: loan.name,
-                        principal: loan.principal,
-                        loanType: loan.loanType || 'bank',
-                        ...loan
-                    };
-                    addLoanCard(loanData);
-                });
+                config.loans.forEach(loan => addLoanCard(loan));
                 updateMinBudgetDisplay();
                 handleCalculate();
             } else {
                 addLoanCard(); 
             }
         } catch (error) {
-            alert("Invalid JSON file");
+            alert("Invalid JSON file: " + error.message);
         }
     };
     reader.readAsText(file);
