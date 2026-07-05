@@ -157,7 +157,6 @@ function addLoanCard(loanData = null) {
 
     if (loanData) {
         loanCard.querySelector('.loan-name-input').value = loanData.name || '';
-        loanCard.querySelector('.loan-principal').value = loanData.principal || '';
         
         if (loanData.loanType === 'moneyLender') {
             typeSelector.value = 'moneyLender';
@@ -165,17 +164,29 @@ function addLoanCard(loanData = null) {
             moneyLenderFields.classList.remove('hidden');
             infoBanner.classList.remove('hidden');
             loanCard.classList.add('moneyLender-card');
-            loanCard.querySelector('.loan-monthly-interest').value = loanData.monthlyInterest || '';
-            loanCard.querySelector('.loan-min-lumpsum').value = loanData.minimumLumpsum || '';
-            loanCard.querySelector('.loan-rd-rate').value = loanData.rdInterestRate || '';
-            loanCard.querySelector('.loan-payment').value = loanData.payment || '';
+            
+            // Set money lender specific fields
+            moneyLenderFields.querySelector('.loan-principal').value = loanData.principal || '';
+            moneyLenderFields.querySelector('.loan-monthly-interest').value = loanData.monthlyInterest || '';
+            moneyLenderFields.querySelector('.loan-min-lumpsum').value = loanData.minimumLumpsum || '';
+            moneyLenderFields.querySelector('.loan-rd-rate').value = loanData.rdInterestRate || '';
+            moneyLenderFields.querySelector('.loan-payment').value = loanData.payment || '';
+            
             updateImpliedRate(loanCard);
             updateLumpsumNote(loanCard);
         } else {
             typeSelector.value = 'bank';
-            loanCard.querySelector('.loan-roi').value = loanData.roi || '';
-            loanCard.querySelector('.loan-bank-emi').value = loanData.bankEmi || '';
-            loanCard.querySelector('.loan-payment').value = loanData.payment || '';
+            bankFields.classList.remove('hidden');
+            moneyLenderFields.classList.add('hidden');
+            infoBanner.classList.add('hidden');
+            loanCard.classList.remove('moneyLender-card');
+            
+            // Set bank loan specific fields
+            bankFields.querySelector('.loan-principal').value = loanData.principal || '';
+            bankFields.querySelector('.loan-roi').value = loanData.roi || '';
+            bankFields.querySelector('.loan-bank-emi').value = loanData.bankEmi || '';
+            bankFields.querySelector('.loan-payment').value = loanData.payment || '';
+            
             updateLoanMinNote(loanCard);
         }
     }
