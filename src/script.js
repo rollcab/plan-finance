@@ -670,25 +670,11 @@ function summarizeSchedule(schedule, config) {
                 data.loans[l.id].total += lInt;
                 if (isPast) data.loans[l.id].paid += lInt; else data.loans[l.id].remain += lInt;
                 
-                // For money lender loans, don't set a closing date (they don't close)
-                if (l.loanType !== 'moneyLender') {
-                    data.loans[l.id].date = row.dateString;
-                }
+                // Always update date to last month where there's activity
+                data.loans[l.id].date = row.dateString;
             }
         });
     });
-    
-    // For money lender loans that never close, set date to N/A
-    config.loans.forEach(l => {
-        if (l.loanType === 'moneyLender' && !data.loans[l.id].date) {
-            data.loans[l.id].date = 'N/A (Never closes)';
-        }
-    });
-    
-    // If all loans are money lenders and combined date wasn't set, mark as N/A
-    if (config.loans.every(l => l.loanType === 'moneyLender') && !data.combined.date) {
-        data.combined.date = 'N/A (Only interest payments)';
-    }
     
     return data;
 }
@@ -808,8 +794,15 @@ function renderSummaries() {
         let lTimeSavedStr = '';
         
         if (l.loanType === 'moneyLender') {
-            dateComparisonStr = `<p>Status: <strong>${d.date}</strong> (only interest payments)</p>`;
-            lMoneySavedStr = `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Interest Paid Until Now: ₹${fmt(d.paid)}</p>`;
+            dateComparisonStr = `<p>If only paying interest: <strong>${d.date}</strong></p>`;
+            
+            // Show comparison: what they'd pay vs what they'll pay with strategy
+            const interestDiff = b.total - d.total;
+            if (interestDiff > 0.1 && b.total > 0) {
+                const interestDiffPct = ((interestDiff / b.total) * 100).toFixed(1);
+                lMoneySavedStr = `<p style="margin-top:0.5rem"><strong>Interest without RD/SB strategy:</strong> ₹${fmt(b.total)}<br><strong>Interest with current strategy:</strong> ₹${fmt(d.total)}<br><span class="success-text">Savings: ₹${fmt(interestDiff)} (${interestDiffPct}%)</span></p>`;
+            }
+            lMoneySavedStr += `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Note: Without RD/SB, you'd keep paying ₹${fmt(b.paid)} interest monthly until you accumulate enough for principal payment.</p>`;
         } else {
             // Individual savings vs Base Bank EMI
             const lTimeDiffMonths = parseMonthYear(b.date) - parseMonthYear(d.date);
@@ -828,9 +821,7 @@ function renderSummaries() {
                 <div class="summary-stats">
                     ${dateComparisonStr}
                     <p style="margin-top:0.5rem"><strong>Total Int:</strong> <del>₹${fmt(b.total)}</del> <strong>₹${fmt(d.total)}</strong> ${lMoneySavedStr}</p>
-                    <p>Paid so far: ₹${fmt(d.paid)}</p>
-                    <p>Remaining Int: ₹${fmt(d.remain)}</p>
-                    ${l.loanType === 'moneyLender' ? `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Note: Loan will never close by paying interest alone. Use RD/SB to accumulate funds for principal payment.</p>` : `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Lost: ${percentLost}% of Principal</p>`}
+                    ${l.loanType !== 'moneyLender' ? `<p>Paid so far: ₹${fmt(d.paid)}</p><p>Remaining Int: ₹${fmt(d.remain)}</p><p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Lost: ${percentLost}% of Principal</p>` : ''}
                 </div>
             </div>
         `;
