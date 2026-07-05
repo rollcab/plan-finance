@@ -363,9 +363,15 @@ function handleCalculate() {
     appState.schedule = mainResult.schedule;
     appState.simulations = {};
     
+    // Store the main strategy result
+    const selectedSummary = summarizeSchedule(mainResult.schedule, config);
+    appState.simulations[config.global.strategy] = selectedSummary;
+    
     // 3. Run all other strategies for comparison pills
     const simulationBudget = Math.max(config.global.totalBudget, baseEmiTotal);
     Object.keys(STRATEGY_NAMES).forEach(strategyKey => {
+        if (strategyKey === config.global.strategy) return; // Skip, already have this
+        
         let simConfig = JSON.parse(JSON.stringify(config)); 
         simConfig.global.strategy = strategyKey;
         simConfig.global.totalBudget = simulationBudget; 
@@ -625,7 +631,7 @@ function summarizeSchedule(schedule, config) {
     
     let data = { combined: { paid: 0, remain: 0, total: 0, date: '', principal: 0 }, loans: {} };
     config.loans.forEach(l => { 
-        data.loans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: '', principal: l.principal }; 
+        data.loans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: '', principal: l.principal, loanType: l.loanType }; 
         data.combined.principal += l.principal;
     });
 
@@ -646,10 +652,27 @@ function summarizeSchedule(schedule, config) {
                 const lInt = parseFloat(lData.interest);
                 data.loans[l.id].total += lInt;
                 if (isPast) data.loans[l.id].paid += lInt; else data.loans[l.id].remain += lInt;
-                data.loans[l.id].date = row.dateString;
+                
+                // For money lender loans, don't set a closing date (they don't close)
+                if (l.loanType !== 'moneyLender') {
+                    data.loans[l.id].date = row.dateString;
+                }
             }
         });
     });
+    
+    // For money lender loans that never close, set date to N/A
+    config.loans.forEach(l => {
+        if (l.loanType === 'moneyLender' && !data.loans[l.id].date) {
+            data.loans[l.id].date = 'N/A (Never closes)';
+        }
+    });
+    
+    // If all loans are money lenders and combined date wasn't set, mark as N/A
+    if (config.loans.every(l => l.loanType === 'moneyLender') && !data.combined.date) {
+        data.combined.date = 'N/A (Only interest payments)';
+    }
+    
     return data;
 }
 
@@ -762,25 +785,35 @@ function renderSummaries() {
         const b = baseSummary.loans[l.id]; // baseline individual
         const percentLost = d.principal > 0 ? ((d.total / d.principal) * 100).toFixed(1) : 0;
         
-        // Individual savings vs Base Bank EMI
-        const lTimeDiffMonths = parseMonthYear(b.date) - parseMonthYear(d.date);
-        const lTimeSavedStr = lTimeDiffMonths > 0 ? `<br><span class="success-text" style="font-size:0.85rem">(Closed ${formatDiff(lTimeDiffMonths)} earlier)</span>` : '';
-        const lMoneySaved = b.total - d.total;
+        // For money lender loans, show different info
+        let dateComparisonStr = '';
         let lMoneySavedStr = '';
-        if (lMoneySaved > 0.1 && b.total > 0) {
-            const lMoneySavedPct = ((lMoneySaved / b.total) * 100).toFixed(1);
-            lMoneySavedStr = ` <span class="success-text" style="font-size:0.85rem">(Saved ₹${fmt(lMoneySaved)} / -${lMoneySavedPct}%)</span>`;
+        let lTimeSavedStr = '';
+        
+        if (l.loanType === 'moneyLender') {
+            dateComparisonStr = `<p>Status: <strong>${d.date}</strong> (only interest payments)</p>`;
+            lMoneySavedStr = `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Interest Paid Until Now: ₹${fmt(d.paid)}</p>`;
+        } else {
+            // Individual savings vs Base Bank EMI
+            const lTimeDiffMonths = parseMonthYear(b.date) - parseMonthYear(d.date);
+            lTimeSavedStr = lTimeDiffMonths > 0 ? `<br><span class="success-text" style="font-size:0.85rem">(Closed ${formatDiff(lTimeDiffMonths)} earlier)</span>` : '';
+            const lMoneySavedCalc = b.total - d.total;
+            if (lMoneySavedCalc > 0.1 && b.total > 0) {
+                const lMoneySavedPct = ((lMoneySavedCalc / b.total) * 100).toFixed(1);
+                lMoneySavedStr = ` <span class="success-text" style="font-size:0.85rem">(Saved ₹${fmt(lMoneySavedCalc)} / -${lMoneySavedPct}%)</span>`;
+            }
+            dateComparisonStr = `<p>Ends: <del>${b.date}</del> <strong>${d.date}</strong> ${lTimeSavedStr}</p>`;
         }
 
         individualHTML += `
             <div class="summary-block individual-summary">
                 <h4>${d.name}</h4>
                 <div class="summary-stats">
-                    <p>Ends: <del>${b.date}</del> <strong>${d.date}</strong> ${lTimeSavedStr}</p>
+                    ${dateComparisonStr}
                     <p style="margin-top:0.5rem"><strong>Total Int:</strong> <del>₹${fmt(b.total)}</del> <strong>₹${fmt(d.total)}</strong> ${lMoneySavedStr}</p>
                     <p>Paid so far: ₹${fmt(d.paid)}</p>
                     <p>Remaining Int: ₹${fmt(d.remain)}</p>
-                    <p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Lost: ${percentLost}% of Principal</p>
+                    ${l.loanType === 'moneyLender' ? `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Note: Loan will never close by paying interest alone. Use RD/SB to accumulate funds for principal payment.</p>` : `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Lost: ${percentLost}% of Principal</p>`}
                 </div>
             </div>
         `;
