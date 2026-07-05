@@ -971,6 +971,8 @@ function importJSON(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    alert('Starting import of: ' + file.name);
+    
     const rawFileName = file.name.replace(/\.json$/i, '');
     const parts = rawFileName.split('.');
     
@@ -989,6 +991,7 @@ function importJSON(event) {
         try {
             const config = JSON.parse(e.target.result);
             console.log('Loaded config:', config);
+            alert('Config loaded with ' + config.loans.length + ' loans');
             if (config.global) {
                 if(config.global.startMonth !== undefined) document.getElementById('startMonth').value = config.global.startMonth;
                 if(config.global.startYear) document.getElementById('startYear').value = config.global.startYear;
@@ -1006,13 +1009,16 @@ function importJSON(event) {
                     console.log('Import loan', idx, ':', loan.name, 'type:', loan.loanType);
                     addLoanCard(loan);
                 });
+                alert('Loans added to form, about to update and calculate');
                 updateMinBudgetDisplay();
                 handleCalculate();
+                alert('Import complete!');
             } else {
                 addLoanCard(); 
             }
         } catch (error) {
-            alert("Invalid JSON file: " + error.message);
+            alert("Error during import: " + error.message + "\n\nStack: " + error.stack);
+            console.error('Import error:', error);
         }
     };
     reader.readAsText(file);
