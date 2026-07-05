@@ -256,3 +256,17 @@ th { background-color: var(--card-bg); font-weight: 600; white-space: nowrap;}
     font-size: 0.8rem;
     font-weight: 600;
 }
+
+/* Strike-through styling */
+del {
+    color: #888;
+    text-decoration-color: var(--error-color);
+    margin-right: 0.5rem;
+}
+
+.base-comparison-note {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
