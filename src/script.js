@@ -343,7 +343,9 @@ function handleCalculate() {
     // 1. Calculate Baseline: What if they only paid the strict Bank EMI or minimum for money lenders?
     let baselineConfig = JSON.parse(JSON.stringify(config));
     baselineConfig.global.strategy = 'manual';
-    baselineConfig.loans.forEach(l => {
+    baselineConfig.loans.forEach((l, idx) => {
+        // Ensure loanType is preserved after deep copy
+        l.loanType = config.loans[idx].loanType;
         if (l.loanType === 'moneyLender') {
             l.payment = l.monthlyInterest;
         } else {
@@ -355,6 +357,20 @@ function handleCalculate() {
         const baselineResult = runSimulation(baselineConfig, 'manual');
         if (!baselineResult.error && baselineResult.schedule && baselineResult.schedule.length > 0) {
             appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
+        } else if (baselineResult.error === "Calculation exceeded 100 years. Please check your inputs.") {
+            // For baseline with money lenders paying only interest, this is expected
+            // Use the schedule data collected up to the limit
+            if (baselineResult.schedule && baselineResult.schedule.length > 0) {
+                appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
+                // Mark money lender loans as never closing
+                baselineConfig.loans.forEach(l => {
+                    if (l.loanType === 'moneyLender') {
+                        appState.baselineSummary.loans[l.id].date = 'Never (Interest only)';
+                    }
+                });
+            } else {
+                throw new Error('Exceeded 100 years with empty schedule');
+            }
         } else {
             throw new Error(baselineResult.error || 'Empty schedule');
         }
