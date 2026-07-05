@@ -346,114 +346,89 @@ function handleCalculate() {
         return;
     }
 
-    // 1. Calculate Baseline: What if they only paid the strict Bank EMI or minimum for money lenders?
-    let baselineConfig = JSON.parse(JSON.stringify(config));
-    baselineConfig.global.strategy = 'manual';
-    baselineConfig.loans.forEach((l, idx) => {
-        // Ensure loanType is preserved after deep copy
-        l.loanType = config.loans[idx].loanType;
-        if (l.loanType === 'moneyLender') {
-            l.payment = l.monthlyInterest;
-        } else {
-            l.payment = l.bankEmi;
-        }
-    }); 
-    
-    try {
-        const baselineResult = runSimulation(baselineConfig, 'manual');
-        if (!baselineResult.error && baselineResult.schedule && baselineResult.schedule.length > 0) {
-            appState.baselineResult = baselineResult.schedule;
-            appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
-        } else if (baselineResult.error === "Calculation exceeded 100 years. Please check your inputs.") {
-            // For baseline with money lenders paying only interest, this is expected
-            // Summarize whatever schedule data we have (even if it's the 100-year limit)
-            if (baselineResult.schedule && baselineResult.schedule.length > 0) {
-                appState.baselineResult = baselineResult.schedule;
-                appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
-                // Mark money lender loans as never closing
-                baselineConfig.loans.forEach(l => {
-                    if (l.loanType === 'moneyLender') {
-                        appState.baselineSummary.loans[l.id].date = 'Never (Interest only)';
-                    }
-                });
-            } else {
-                // Empty schedule means baseline couldn't calculate - use a simple default
-                console.log('Baseline exceeded 100 years with empty schedule');
-                const fallbackLoans = {};
-                baselineConfig.loans.forEach(l => {
-                    let totalInterest = 0;
-                    // For money lenders, estimate interest for first month as reference
-                    if (l.loanType === 'moneyLender') {
-                        totalInterest = l.monthlyInterest * 12; // 1 year of interest
-                    }
-                    fallbackLoans[l.id] = { name: l.name, paid: 0, remain: totalInterest, total: totalInterest, date: 'Never (Interest only)', principal: l.principal, loanType: l.loanType };
-                });
-                appState.baselineSummary = { 
-                    combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: baselineConfig.loans.reduce((sum, l) => sum + l.principal, 0) }, 
-                    loans: fallbackLoans 
-                };
-                appState.baselineResult = [];
-            }
-        } else {
-            throw new Error(baselineResult.error || 'Empty schedule');
-        }
-    } catch (err) {
-        console.error('Baseline calculation failed:', err);
-        const fallbackLoans = {};
-        config.loans.forEach(l => {
-            fallbackLoans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: 'N/A', principal: l.principal, loanType: l.loanType };
-        });
-        appState.baselineSummary = { 
-            combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: config.loans.reduce((sum, l) => sum + l.principal, 0) }, 
-            loans: fallbackLoans 
-        };
-        appState.baselineResult = [];
-    }
-
-    // 2. Run selected user strategy
+    // 1. Run the selected user strategy first (we need this to know money lender closure dates for baseline)
     const mainResult = runSimulation(config, config.global.strategy);
     if (mainResult.error) {
         showError(mainResult.error); return;
     }
 
+    // 2. Build baseline per-loan:
+    //    - Bank loans: run a standalone single-loan simulation at bankEmi
+    //    - Money lender loans: simply multiply monthlyInterest by how many months until they close in the main strategy
+    //    Running a combined baseline fails when any money lender loan is present because
+    //    paying only interest means the principal never reduces and the 100-year safety limit triggers.
+    const baselineSummary = {
+        combined: { paid: 0, remain: 0, total: 0, date: '', principal: 0 },
+        loans: {}
+    };
+
+    const now = new Date();
+    const currentAbsoluteMonth = (now.getFullYear() * 12) + now.getMonth();
+
+    config.loans.forEach(l => {
+        baselineSummary.combined.principal += l.principal;
+
+        if (l.loanType === 'moneyLender') {
+            // Find closure month in main strategy
+            const closureIdx = mainResult.schedule.findIndex(row => parseFloat(row.loans[l.id].closing) === 0);
+            const closureMonths = closureIdx === -1 ? mainResult.schedule.length : closureIdx + 1;
+            const closureDate = closureIdx >= 0
+                ? mainResult.schedule[closureIdx].dateString
+                : mainResult.schedule[mainResult.schedule.length - 1].dateString;
+
+            // Accumulate interest month by month (principal never reduces in baseline)
+            let totalInterest = l.monthlyInterest * closureMonths;
+            // Split into paid vs remaining based on current month
+            let paidInterest = 0, remainInterest = 0;
+            for (let i = 0; i < closureMonths; i++) {
+                const row = mainResult.schedule[i];
+                if (!row) break;
+                const rowAbs = (row.year * 12) + row.month;
+                if (rowAbs <= currentAbsoluteMonth) paidInterest += l.monthlyInterest;
+                else remainInterest += l.monthlyInterest;
+            }
+
+            baselineSummary.loans[l.id] = {
+                name: l.name, paid: paidInterest, remain: remainInterest,
+                total: totalInterest, date: closureDate,
+                principal: l.principal, loanType: l.loanType
+            };
+        } else {
+            // Run a standalone baseline for this bank loan only
+            const singleConfig = {
+                global: { ...config.global, strategy: 'manual' },
+                loans: [{ ...l, payment: l.bankEmi }]
+            };
+            const sResult = runSimulation(singleConfig, 'manual');
+            if (!sResult.error && sResult.schedule && sResult.schedule.length > 0) {
+                const s = summarizeSchedule(sResult.schedule, singleConfig);
+                baselineSummary.loans[l.id] = { ...s.loans[l.id] };
+            } else {
+                baselineSummary.loans[l.id] = {
+                    name: l.name, paid: 0, remain: 0, total: 0,
+                    date: 'N/A', principal: l.principal, loanType: l.loanType
+                };
+            }
+        }
+
+        baselineSummary.combined.total  += baselineSummary.loans[l.id].total;
+        baselineSummary.combined.paid   += baselineSummary.loans[l.id].paid;
+        baselineSummary.combined.remain += baselineSummary.loans[l.id].remain;
+    });
+
+    // Combined date = latest closure date across all loans
+    const allDates = Object.values(baselineSummary.loans)
+        .map(lv => lv.date)
+        .filter(d => d && d !== 'N/A');
+    if (allDates.length > 0) {
+        baselineSummary.combined.date = allDates.sort((a, b) => parseMonthYear(b) - parseMonthYear(a))[0];
+    }
+    appState.baselineSummary = baselineSummary;
+    
     appState.config = config;
     appState.schedule = mainResult.schedule;
     appState.simulations = {};
-    
-    // For money lender loans, find when they close in main strategy to limit baseline comparison
-    const loanClosureMonth = {};
-    config.loans.forEach(l => {
-        if (l.loanType === 'moneyLender') {
-            let closureIdx = mainResult.schedule.findIndex(row => parseFloat(row.loans[l.id].closing) === 0);
-            if (closureIdx === -1) {
-                loanClosureMonth[l.id] = mainResult.schedule.length;
-            } else {
-                loanClosureMonth[l.id] = closureIdx + 1;
-            }
-        }
-    });
-    
-    // Trim baseline summary for money lender loans to their closure month
-    if (appState.baselineSummary && appState.baselineSummary.loans) {
-        config.loans.forEach(l => {
-            if (l.loanType === 'moneyLender' && loanClosureMonth[l.id] && appState.baselineResult) {
-                let cumulativeInterest = 0;
-                for (let i = 0; i < Math.min(loanClosureMonth[l.id], appState.baselineResult.length); i++) {
-                    const lData = appState.baselineResult[i].loans[l.id];
-                    if (lData) {
-                        cumulativeInterest += parseFloat(lData.interest);
-                    }
-                }
-                if (appState.baselineSummary.loans[l.id]) {
-                    appState.baselineSummary.loans[l.id].total = cumulativeInterest;
-                    if (loanClosureMonth[l.id] < appState.baselineResult.length) {
-                        appState.baselineSummary.loans[l.id].date = appState.baselineResult[loanClosureMonth[l.id] - 1].dateString;
-                    }
-                }
-            }
-        });
-    }
-    
+
     // Store the main strategy result
     const selectedSummary = summarizeSchedule(mainResult.schedule, config);
     appState.simulations[config.global.strategy] = selectedSummary;
