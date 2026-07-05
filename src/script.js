@@ -343,7 +343,14 @@ function handleCalculate() {
     if (!baselineResult.error) {
         appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
     } else {
-        appState.baselineSummary = appState.baselineSummary || { combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: 0 }, loans: {} };
+        const fallbackLoans = {};
+        config.loans.forEach(l => {
+            fallbackLoans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: 'N/A', principal: l.principal };
+        });
+        appState.baselineSummary = { 
+            combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: config.loans.reduce((sum, l) => sum + l.principal, 0) }, 
+            loans: fallbackLoans 
+        };
     }
 
     // 2. Run selected user strategy
