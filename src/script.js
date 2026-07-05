@@ -62,6 +62,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('loan-principal') || e.target.classList.contains('loan-roi')) {
             const card = e.target.closest('.loan-card');
             updateLoanMinNote(card);
+            updateImpliedRate(card);
+        }
+        
+        if (e.target.classList.contains('loan-monthly-interest') || e.target.classList.contains('loan-principal')) {
+            const card = e.target.closest('.loan-card');
+            updateImpliedRate(card);
+        }
+        
+        if (e.target.classList.contains('loan-principal') || e.target.classList.contains('loan-min-lumpsum')) {
+            const card = e.target.closest('.loan-card');
+            updateLumpsumNote(card);
         }
     });
 
@@ -117,23 +128,91 @@ function addLoanCard(loanData = null) {
     const template = document.getElementById('loan-card-template');
     const clone = template.content.cloneNode(true);
     const loanCard = clone.querySelector('.loan-card');
+    const typeSelector = clone.querySelector('.loan-type-selector');
+    const bankFields = clone.querySelector('.bank-loan-fields');
+    const moneyLenderFields = clone.querySelector('.moneyLender-loan-fields');
+    const infoBanner = clone.querySelector('.loan-type-info-banner');
     
     loanCard.querySelector('.remove-loan-btn').addEventListener('click', () => {
         loanCard.remove();
         updateMinBudgetDisplay();
     });
 
+    typeSelector.addEventListener('change', (e) => {
+        const type = e.target.value;
+        if (type === 'bank') {
+            bankFields.classList.remove('hidden');
+            moneyLenderFields.classList.add('hidden');
+            infoBanner.classList.add('hidden');
+            loanCard.classList.remove('moneyLender-card');
+        } else {
+            bankFields.classList.add('hidden');
+            moneyLenderFields.classList.remove('hidden');
+            infoBanner.classList.remove('hidden');
+            loanCard.classList.add('moneyLender-card');
+            updateImpliedRate(loanCard);
+        }
+        updateMinBudgetDisplay();
+    });
+
     if (loanData) {
         loanCard.querySelector('.loan-name-input').value = loanData.name || '';
         loanCard.querySelector('.loan-principal').value = loanData.principal || '';
-        loanCard.querySelector('.loan-roi').value = loanData.roi || '';
-        loanCard.querySelector('.loan-bank-emi').value = loanData.bankEmi || '';
-        loanCard.querySelector('.loan-payment').value = loanData.payment || '';
-        updateLoanMinNote(loanCard);
+        
+        if (loanData.loanType === 'moneyLender') {
+            typeSelector.value = 'moneyLender';
+            bankFields.classList.add('hidden');
+            moneyLenderFields.classList.remove('hidden');
+            infoBanner.classList.remove('hidden');
+            loanCard.classList.add('moneyLender-card');
+            loanCard.querySelector('.loan-monthly-interest').value = loanData.monthlyInterest || '';
+            loanCard.querySelector('.loan-min-lumpsum').value = loanData.minimumLumpsum || '';
+            loanCard.querySelector('.loan-rd-rate').value = loanData.rdInterestRate || '';
+            loanCard.querySelector('.loan-payment').value = loanData.payment || '';
+            updateImpliedRate(loanCard);
+            updateLumpsumNote(loanCard);
+        } else {
+            typeSelector.value = 'bank';
+            loanCard.querySelector('.loan-roi').value = loanData.roi || '';
+            loanCard.querySelector('.loan-bank-emi').value = loanData.bankEmi || '';
+            loanCard.querySelector('.loan-payment').value = loanData.payment || '';
+            updateLoanMinNote(loanCard);
+        }
     }
 
     document.getElementById('loanList').appendChild(loanCard);
     updateMinBudgetDisplay();
+}
+
+function updateImpliedRate(card) {
+    const principal = parseFloat(card.querySelector('.loan-principal').value);
+    const monthlyInterest = parseFloat(card.querySelector('.loan-monthly-interest').value);
+    const rateEl = card.querySelector('.loan-implied-rate');
+    
+    if (!isNaN(principal) && !isNaN(monthlyInterest) && principal > 0) {
+        const impliedRate = (monthlyInterest / principal) * 12 * 100;
+        rateEl.textContent = `Implied Interest Rate: ${impliedRate.toFixed(2)}% p.a.`;
+        rateEl.classList.remove('hidden');
+    } else {
+        rateEl.classList.add('hidden');
+    }
+}
+
+function updateLumpsumNote(card) {
+    const principal = parseFloat(card.querySelector('.loan-principal').value);
+    const minLumpsum = parseFloat(card.querySelector('.loan-min-lumpsum').value);
+    const noteEl = card.querySelector('.loan-lumpsum-note');
+    
+    if (!isNaN(principal) && !isNaN(minLumpsum) && principal > 0 && minLumpsum > 0) {
+        if (minLumpsum > principal) {
+            noteEl.textContent = `⚠️ Minimum lumpsum cannot exceed principal (₹${principal.toLocaleString('en-IN')})`;
+            noteEl.classList.remove('hidden');
+        } else {
+            noteEl.classList.add('hidden');
+        }
+    } else {
+        noteEl.classList.add('hidden');
+    }
 }
 
 function gatherInputs() {
@@ -149,14 +228,31 @@ function gatherInputs() {
 
     const cards = document.querySelectorAll('.loan-card');
     cards.forEach((card, index) => {
-        config.loans.push({
-            id: `loan_${index}`,
-            name: card.querySelector('.loan-name-input').value || `Loan ${index + 1}`,
-            principal: parseFloat(card.querySelector('.loan-principal').value),
-            roi: parseFloat(card.querySelector('.loan-roi').value),
-            bankEmi: parseFloat(card.querySelector('.loan-bank-emi').value),
-            payment: parseFloat(card.querySelector('.loan-payment').value) || 0
-        });
+        const typeSelector = card.querySelector('.loan-type-selector');
+        const loanType = typeSelector ? typeSelector.value : 'bank';
+        
+        if (loanType === 'moneyLender') {
+            config.loans.push({
+                id: `loan_${index}`,
+                loanType: 'moneyLender',
+                name: card.querySelector('.loan-name-input').value || `Loan ${index + 1}`,
+                principal: parseFloat(card.querySelector('.loan-principal').value),
+                monthlyInterest: parseFloat(card.querySelector('.loan-monthly-interest').value),
+                minimumLumpsum: parseFloat(card.querySelector('.loan-min-lumpsum').value),
+                rdInterestRate: parseFloat(card.querySelector('.loan-rd-rate').value),
+                payment: parseFloat(card.querySelector('.loan-payment').value) || 0
+            });
+        } else {
+            config.loans.push({
+                id: `loan_${index}`,
+                loanType: 'bank',
+                name: card.querySelector('.loan-name-input').value || `Loan ${index + 1}`,
+                principal: parseFloat(card.querySelector('.loan-principal').value),
+                roi: parseFloat(card.querySelector('.loan-roi').value),
+                bankEmi: parseFloat(card.querySelector('.loan-bank-emi').value),
+                payment: parseFloat(card.querySelector('.loan-payment').value) || 0
+            });
+        }
     });
     return config;
 }
@@ -172,30 +268,57 @@ function handleCalculate() {
     
     let baseEmiTotal = 0;
     for (let loan of config.loans) {
-        if (isNaN(loan.principal) || isNaN(loan.roi) || isNaN(loan.bankEmi) || isNaN(loan.payment)) {
-            showError("Please fill in all numerical fields for your loans."); return;
+        if (loan.loanType === 'moneyLender') {
+            if (isNaN(loan.principal) || isNaN(loan.monthlyInterest) || isNaN(loan.minimumLumpsum) || isNaN(loan.rdInterestRate) || isNaN(loan.payment)) {
+                showError(`Please fill in all fields for money lender loan: ${loan.name}`); return;
+            }
+            if (loan.monthlyInterest <= 0) {
+                showError(`Monthly interest for ${loan.name} must be greater than 0`); return;
+            }
+            if (loan.minimumLumpsum <= 0) {
+                showError(`Minimum lumpsum for ${loan.name} must be greater than 0`); return;
+            }
+            if (loan.minimumLumpsum > loan.principal) {
+                showError(`Minimum lumpsum for ${loan.name} (₹${loan.minimumLumpsum}) cannot exceed principal (₹${loan.principal})`); return;
+            }
+            if (loan.rdInterestRate < 0) {
+                showError(`RD/SB interest rate for ${loan.name} cannot be negative`); return;
+            }
+            if (loan.payment < loan.monthlyInterest) {
+                showError(`'How much you want to pay' for ${loan.name} (₹${loan.payment}) must be at least the monthly interest (₹${loan.monthlyInterest})`); return;
+            }
+            baseEmiTotal += loan.monthlyInterest;
+        } else {
+            if (isNaN(loan.principal) || isNaN(loan.roi) || isNaN(loan.bankEmi) || isNaN(loan.payment)) {
+                showError("Please fill in all numerical fields for your loans."); return;
+            }
+            
+            const absoluteMin = Math.ceil((loan.principal * (loan.roi / 12 / 100)) + 1);
+            if (loan.bankEmi < absoluteMin) {
+                showError(`Actual Bank EMI for ${loan.name} (₹${loan.bankEmi}) is too low. You must pay at least ₹${absoluteMin} to cover interest.`); return;
+            }
+            if (loan.payment < loan.bankEmi) {
+                showError(`'How much you want to pay' for ${loan.name} (₹${loan.payment}) cannot be less than the Bank EMI (₹${loan.bankEmi}).`); return;
+            }
+            baseEmiTotal += loan.monthlyInterest;
         }
-        
-        const absoluteMin = Math.ceil((loan.principal * (loan.roi / 12 / 100)) + 1);
-        if (loan.bankEmi < absoluteMin) {
-            showError(`Actual Bank EMI for ${loan.name} (₹${loan.bankEmi}) is too low. You must pay at least ₹${absoluteMin} to cover interest.`); return;
-        }
-        if (loan.payment < loan.bankEmi) {
-            showError(`'How much you want to pay' for ${loan.name} (₹${loan.payment}) cannot be less than the Bank EMI (₹${loan.bankEmi}).`); return;
-        }
-        
-        baseEmiTotal += loan.payment;
     }
 
     if (config.global.strategy !== 'manual' && (isNaN(config.global.totalBudget) || config.global.totalBudget < baseEmiTotal)) {
-        showError(`For automated allocation, your Total Monthly Budget must be at least ₹${baseEmiTotal.toLocaleString('en-IN')} to cover all Planned Payments.`); 
+        showError(`For automated allocation, your Total Monthly Budget must be at least ₹${baseEmiTotal.toLocaleString('en-IN')} to cover all base payments.`); 
         return;
     }
 
-    // 1. Calculate Baseline: What if they only paid the strict Bank EMI? (Manual mode, using bankEmi)
+    // 1. Calculate Baseline: What if they only paid the strict Bank EMI or minimum for money lenders?
     let baselineConfig = JSON.parse(JSON.stringify(config));
     baselineConfig.global.strategy = 'manual';
-    baselineConfig.loans.forEach(l => l.payment = l.bankEmi); 
+    baselineConfig.loans.forEach(l => {
+        if (l.loanType === 'moneyLender') {
+            l.payment = l.monthlyInterest;
+        } else {
+            l.payment = l.bankEmi;
+        }
+    }); 
     const baselineResult = runSimulation(baselineConfig, 'manual');
     if (!baselineResult.error) {
         appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
@@ -241,7 +364,15 @@ function handleCalculate() {
 }
 
 function runSimulation(config, strategyType) {
-    let activeLoans = config.loans.map(l => ({ ...l, remaining: l.principal }));
+    let activeLoans = config.loans.map(l => {
+        const loanCopy = { ...l, remaining: l.principal };
+        if (l.loanType === 'moneyLender') {
+            loanCopy.rdBalance = 0;
+            loanCopy.rdPaidFromThisMonth = false;
+        }
+        return loanCopy;
+    });
+    
     let schedule = [];
     let currentMonth = config.global.startMonth;
     let currentYear = config.global.startYear;
@@ -260,70 +391,99 @@ function runSimulation(config, strategyType) {
         };
 
         if (strategyType !== 'manual') {
-            let totalEMIThisMonth = 0;
+            let totalBasePaymentThisMonth = 0;
             
             for (let loan of activeLoans) {
                 if (loan.remaining > 0) {
-                    let interest = loan.remaining * (loan.roi / 12 / 100);
-                    loan.currentMonthInterest = interest;
-
-                    let requiredPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
-                    loan.currentMonthPayment = requiredPayment;
-                    totalEMIThisMonth += requiredPayment;
+                    if (loan.loanType === 'moneyLender') {
+                        loan.currentMonthInterest = loan.monthlyInterest;
+                        loan.currentMonthPayment = loan.monthlyInterest;
+                    } else {
+                        let interest = loan.remaining * (loan.roi / 12 / 100);
+                        loan.currentMonthInterest = interest;
+                        let requiredPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
+                        loan.currentMonthPayment = requiredPayment;
+                    }
+                    totalBasePaymentThisMonth += loan.currentMonthPayment;
                 }
             }
 
-            let budgetLeft = config.global.totalBudget - totalEMIThisMonth;
-            let priorityLoans = [...activeLoans].filter(l => (l.remaining + l.currentMonthInterest - l.currentMonthPayment) > 0.01);
+            let budgetLeft = config.global.totalBudget - totalBasePaymentThisMonth;
             
-            if (strategyType === 'equal' && budgetLeft > 0) {
-                while (budgetLeft > 0.01 && priorityLoans.length > 0) {
-                    let splitAmount = budgetLeft / priorityLoans.length;
-                    let budgetSpentThisRound = 0;
-                    let stillNeedingExtra = [];
+            if (budgetLeft > 0.01) {
+                let moneyLenderLoans = activeLoans.filter(l => l.loanType === 'moneyLender' && l.remaining > 0);
+                let bankLoans = activeLoans.filter(l => l.loanType !== 'moneyLender' && l.remaining > 0);
+                
+                if (strategyType === 'equal') {
+                    let allLoans = [...moneyLenderLoans, ...bankLoans];
+                    let priorityLoans = allLoans.filter(l => {
+                        if (l.loanType === 'moneyLender') return true;
+                        return (l.remaining + l.currentMonthInterest - l.currentMonthPayment) > 0.01;
+                    });
+                    
+                    while (budgetLeft > 0.01 && priorityLoans.length > 0) {
+                        let splitAmount = budgetLeft / priorityLoans.length;
+                        let budgetSpentThisRound = 0;
+                        let stillNeedingExtra = [];
 
-                    for (let loan of priorityLoans) {
-                        let principalLeft = (loan.remaining + loan.currentMonthInterest) - loan.currentMonthPayment;
-                        if (splitAmount >= principalLeft) {
-                            loan.currentMonthPayment += principalLeft;
-                            budgetSpentThisRound += principalLeft;
-                        } else {
-                            loan.currentMonthPayment += splitAmount;
-                            budgetSpentThisRound += splitAmount;
-                            stillNeedingExtra.push(loan);
+                        for (let loan of priorityLoans) {
+                            if (loan.loanType === 'moneyLender') {
+                                loan.rdToAdd = (loan.rdToAdd || 0) + splitAmount;
+                                budgetSpentThisRound += splitAmount;
+                            } else {
+                                let principalLeft = (loan.remaining + loan.currentMonthInterest) - loan.currentMonthPayment;
+                                if (splitAmount >= principalLeft) {
+                                    loan.currentMonthPayment += principalLeft;
+                                    budgetSpentThisRound += principalLeft;
+                                } else {
+                                    loan.currentMonthPayment += splitAmount;
+                                    budgetSpentThisRound += splitAmount;
+                                    stillNeedingExtra.push(loan);
+                                }
+                            }
                         }
+                        budgetLeft -= budgetSpentThisRound;
+                        priorityLoans = stillNeedingExtra;
+                        if (budgetSpentThisRound < 0.01) break; 
                     }
-                    budgetLeft -= budgetSpentThisRound;
-                    priorityLoans = stillNeedingExtra;
-                    if (budgetSpentThisRound < 0.01) break; 
-                }
-
-            } else if ((strategyType === 'smart' || strategyType === 'highest_interest') && budgetLeft > 0) {
-                if (strategyType === 'smart') {
-                    priorityLoans.sort((a, b) => b.roi - a.roi);
-                } else if (strategyType === 'highest_interest') {
-                    priorityLoans.sort((a, b) => b.currentMonthInterest - a.currentMonthInterest);
-                }
-
-                for (let loan of priorityLoans) {
-                    if (budgetLeft <= 0) break;
-                    let principalLeftAfterEMI = (loan.remaining + loan.currentMonthInterest) - loan.currentMonthPayment;
-                    if (budgetLeft >= principalLeftAfterEMI) {
-                        loan.currentMonthPayment += principalLeftAfterEMI;
-                        budgetLeft -= principalLeftAfterEMI;
+                } else if (strategyType === 'smart' || strategyType === 'highest_interest') {
+                    if (strategyType === 'smart') {
+                        moneyLenderLoans.sort((a, b) => b.rdInterestRate - a.rdInterestRate);
+                        bankLoans.sort((a, b) => b.roi - a.roi);
                     } else {
-                        loan.currentMonthPayment += budgetLeft;
+                        bankLoans.sort((a, b) => b.currentMonthInterest - a.currentMonthInterest);
+                    }
+
+                    for (let loan of moneyLenderLoans) {
+                        if (budgetLeft <= 0) break;
+                        loan.rdToAdd = (loan.rdToAdd || 0) + budgetLeft;
                         budgetLeft = 0;
                     }
+
+                    for (let loan of bankLoans) {
+                        if (budgetLeft <= 0) break;
+                        let principalLeftAfterEMI = (loan.remaining + loan.currentMonthInterest) - loan.currentMonthPayment;
+                        if (budgetLeft >= principalLeftAfterEMI) {
+                            loan.currentMonthPayment += principalLeftAfterEMI;
+                            budgetLeft -= principalLeftAfterEMI;
+                        } else {
+                            loan.currentMonthPayment += budgetLeft;
+                            budgetLeft = 0;
+                        }
+                    }
                 }
             }
-
         } else {
             for (let loan of activeLoans) {
                 if (loan.remaining > 0) {
-                    let interest = loan.remaining * (loan.roi / 12 / 100);
-                    loan.currentMonthInterest = interest;
-                    loan.currentMonthPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
+                    if (loan.loanType === 'moneyLender') {
+                        loan.currentMonthInterest = loan.monthlyInterest;
+                        loan.currentMonthPayment = loan.payment;
+                    } else {
+                        let interest = loan.remaining * (loan.roi / 12 / 100);
+                        loan.currentMonthInterest = interest;
+                        loan.currentMonthPayment = (loan.remaining + interest <= loan.payment) ? loan.remaining + interest : loan.payment;
+                    }
                 }
             }
         }
@@ -332,18 +492,78 @@ function runSimulation(config, strategyType) {
         activeLoans.forEach(loan => {
             if (loan.remaining > 0) {
                 anyLoanActive = true;
-                let interest = loan.currentMonthInterest;
-                let principalPaid = loan.currentMonthPayment - interest;
-                let totalPayment = loan.currentMonthPayment;
-                let opening = loan.remaining;
                 
-                loan.remaining -= principalPaid;
-                if(loan.remaining < 0.01) loan.remaining = 0;
+                if (loan.loanType === 'moneyLender') {
+                    let interest = loan.currentMonthInterest;
+                    let interestPayment = Math.min(loan.currentMonthPayment, interest);
+                    let rdAddition = loan.currentMonthPayment - interestPayment + (loan.rdToAdd || 0);
+                    
+                    loan.rdBalance += rdAddition;
+                    loan.rdBalance += (loan.rdBalance * loan.rdInterestRate / 12 / 100);
+                    
+                    let principalPaid = 0;
+                    let note = '';
+                    if (loan.rdBalance >= loan.minimumLumpsum) {
+                        principalPaid = loan.minimumLumpsum;
+                        loan.remaining -= principalPaid;
+                        loan.rdBalance -= principalPaid;
+                        note = `RD Milestone reached: ₹${principalPaid.toLocaleString('en-IN')} paid towards principal`;
+                        if (loan.remaining < 0.01) loan.remaining = 0;
+                    }
+                    
+                    let totalPayment = interestPayment + rdAddition + principalPaid;
+                    let opening = loan.remaining + principalPaid;
+                    
+                    monthData.loans[loan.id] = {
+                        opening: opening.toFixed(2),
+                        interest: interestPayment.toFixed(2),
+                        principalPaid: principalPaid.toFixed(2),
+                        rdAddition: rdAddition.toFixed(2),
+                        rdBalance: loan.rdBalance.toFixed(2),
+                        totalPayment: totalPayment.toFixed(2),
+                        closing: loan.remaining.toFixed(2),
+                        note: note,
+                        loanType: 'moneyLender'
+                    };
+                    
+                    monthData.combined.opening += opening;
+                    monthData.combined.interest += interestPayment;
+                    monthData.combined.principalPaid += principalPaid;
+                    monthData.combined.totalPayment += totalPayment;
+                    monthData.combined.closing += loan.remaining;
+                } else {
+                    let interest = loan.currentMonthInterest;
+                    let principalPaid = loan.currentMonthPayment - interest;
+                    let totalPayment = loan.currentMonthPayment;
+                    let opening = loan.remaining;
+                    
+                    loan.remaining -= principalPaid;
+                    if(loan.remaining < 0.01) loan.remaining = 0;
 
-                monthData.loans[loan.id] = { opening: opening.toFixed(2), interest: interest.toFixed(2), principalPaid: principalPaid.toFixed(2), totalPayment: totalPayment.toFixed(2), closing: loan.remaining.toFixed(2) };
-                monthData.combined.opening += opening; monthData.combined.interest += interest; monthData.combined.principalPaid += principalPaid; monthData.combined.totalPayment += totalPayment; monthData.combined.closing += loan.remaining;
+                    monthData.loans[loan.id] = {
+                        opening: opening.toFixed(2),
+                        interest: interest.toFixed(2),
+                        principalPaid: principalPaid.toFixed(2),
+                        totalPayment: totalPayment.toFixed(2),
+                        closing: loan.remaining.toFixed(2),
+                        loanType: 'bank'
+                    };
+                    
+                    monthData.combined.opening += opening;
+                    monthData.combined.interest += interest;
+                    monthData.combined.principalPaid += principalPaid;
+                    monthData.combined.totalPayment += totalPayment;
+                    monthData.combined.closing += loan.remaining;
+                }
             } else {
-                monthData.loans[loan.id] = { opening: "0.00", interest: "0.00", principalPaid: "0.00", totalPayment: "0.00", closing: "0.00" };
+                monthData.loans[loan.id] = {
+                    opening: "0.00",
+                    interest: "0.00",
+                    principalPaid: "0.00",
+                    totalPayment: "0.00",
+                    closing: "0.00",
+                    loanType: loan.loanType
+                };
             }
         });
 
@@ -359,6 +579,10 @@ function runSimulation(config, strategyType) {
             schedule.push(monthData);
             currentMonth++;
             if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+        }
+        
+        for (let loan of activeLoans) {
+            loan.rdToAdd = 0;
         }
     }
 
@@ -537,10 +761,19 @@ function renderTable() {
     
     const viewId = document.getElementById('viewSelector').value;
     const tbody = document.getElementById('scheduleBody');
-    tbody.innerHTML = ''; 
-
+    const thead = document.querySelector('#scheduleTable thead tr');
+    tbody.innerHTML = '';
+    
     const now = new Date();
     const currentAbsoluteMonth = (now.getFullYear() * 12) + now.getMonth();
+
+    let isMoneyLender = false;
+    if (viewId !== 'combined') {
+        const loanConfig = appState.config.loans.find(l => l.id === viewId);
+        isMoneyLender = loanConfig && loanConfig.loanType === 'moneyLender';
+    }
+
+    updateTableHeaders(isMoneyLender);
 
     appState.schedule.forEach(row => {
         const tr = document.createElement('tr');
@@ -551,16 +784,56 @@ function renderTable() {
         if (viewId !== 'combined' && parseFloat(displayData.opening) === 0) return;
         if (rowAbsoluteMonth <= currentAbsoluteMonth) tr.classList.add('past-row');
 
-        tr.innerHTML = `
-            <td>${row.dateString}</td>
-            <td>₹${Number(displayData.opening).toLocaleString('en-IN')}</td>
-            <td>₹${Number(displayData.interest).toLocaleString('en-IN')}</td>
-            <td>₹${Number(displayData.principalPaid).toLocaleString('en-IN')}</td>
-            <td><strong>₹${Number(displayData.totalPayment).toLocaleString('en-IN')}</strong></td>
-            <td>₹${Number(displayData.closing).toLocaleString('en-IN')}</td>
-        `;
+        if (isMoneyLender) {
+            tr.innerHTML = `
+                <td>${row.dateString}</td>
+                <td>₹${Number(displayData.opening).toLocaleString('en-IN')}</td>
+                <td>₹${Number(displayData.interest).toLocaleString('en-IN')}</td>
+                <td>₹${Number(displayData.rdAddition || 0).toLocaleString('en-IN')}</td>
+                <td>₹${Number(displayData.rdBalance || 0).toLocaleString('en-IN')}</td>
+                <td>₹${Number(displayData.principalPaid).toLocaleString('en-IN')}</td>
+                <td><strong>₹${Number(displayData.totalPayment).toLocaleString('en-IN')}</strong></td>
+                <td>₹${Number(displayData.closing).toLocaleString('en-IN')}</td>
+                <td>${displayData.note || ''}</td>
+            `;
+        } else {
+            tr.innerHTML = `
+                <td>${row.dateString}</td>
+                <td>₹${Number(displayData.opening).toLocaleString('en-IN')}</td>
+                <td>₹${Number(displayData.interest).toLocaleString('en-IN')}</td>
+                <td>₹${Number(displayData.principalPaid).toLocaleString('en-IN')}</td>
+                <td><strong>₹${Number(displayData.totalPayment).toLocaleString('en-IN')}</strong></td>
+                <td>₹${Number(displayData.closing).toLocaleString('en-IN')}</td>
+            `;
+        }
         tbody.appendChild(tr);
     });
+}
+
+function updateTableHeaders(isMoneyLender) {
+    const thead = document.querySelector('#scheduleTable thead tr');
+    if (isMoneyLender) {
+        thead.innerHTML = `
+            <th>Date</th>
+            <th>Opening Principal</th>
+            <th>Interest Payment</th>
+            <th>RD/SB Addition</th>
+            <th>RD/SB Balance</th>
+            <th>Principal Paid</th>
+            <th>Total Payment</th>
+            <th>Closing Principal</th>
+            <th>Note</th>
+        `;
+    } else {
+        thead.innerHTML = `
+            <th>Date</th>
+            <th>Opening Principal</th>
+            <th>Interest Portion</th>
+            <th>Principal Portion</th>
+            <th>Total Payment</th>
+            <th>Closing Principal</th>
+        `;
+    }
 }
 
 function showError(message) {
@@ -626,7 +899,15 @@ function importJSON(event) {
 
             document.getElementById('loanList').innerHTML = '';
             if (config.loans && config.loans.length > 0) {
-                config.loans.forEach(loan => addLoanCard(loan));
+                config.loans.forEach(loan => {
+                    const loanData = {
+                        name: loan.name,
+                        principal: loan.principal,
+                        loanType: loan.loanType || 'bank',
+                        ...loan
+                    };
+                    addLoanCard(loanData);
+                });
                 updateMinBudgetDisplay();
                 handleCalculate();
             } else {
@@ -648,7 +929,11 @@ function downloadCSV() {
     
     let headerRow = ["Config Key", "Config Value", "", "COMBINED Date", "Opening Principal", "Interest Portion", "Principal Portion", "Total Payment", "Closing Principal"];
     appState.config.loans.forEach(loan => {
-        headerRow.push("", `${loan.name.toUpperCase()} Date`, "Opening Principal", "Interest Portion", "Principal Portion", "Total Payment", "Closing Principal");
+        if (loan.loanType === 'moneyLender') {
+            headerRow.push("", `${loan.name.toUpperCase()} Date`, "Opening Principal", "Interest Payment", "RD/SB Addition", "RD/SB Balance", "Principal Paid", "Total Payment", "Closing Principal", "Note");
+        } else {
+            headerRow.push("", `${loan.name.toUpperCase()} Date`, "Opening Principal", "Interest Portion", "Principal Portion", "Total Payment", "Closing Principal");
+        }
     });
     csvRows.push(headerRow);
 
@@ -661,10 +946,18 @@ function downloadCSV() {
         configData.push(["Total Budget", appState.config.global.totalBudget]);
     } 
     appState.config.loans.forEach(loan => {
-        configData.push([`${loan.name} Bank EMI`, loan.bankEmi]);
-        configData.push([`${loan.name} Planned Payment`, loan.payment]);
-        configData.push([`${loan.name} Principal`, loan.principal]);
-        configData.push([`${loan.name} ROI`, loan.roi]);
+        if (loan.loanType === 'moneyLender') {
+            configData.push([`${loan.name} Monthly Interest`, loan.monthlyInterest]);
+            configData.push([`${loan.name} Min Lumpsum`, loan.minimumLumpsum]);
+            configData.push([`${loan.name} RD Rate`, loan.rdInterestRate]);
+            configData.push([`${loan.name} Total Payment`, loan.payment]);
+            configData.push([`${loan.name} Principal`, loan.principal]);
+        } else {
+            configData.push([`${loan.name} Bank EMI`, loan.bankEmi]);
+            configData.push([`${loan.name} Planned Payment`, loan.payment]);
+            configData.push([`${loan.name} Principal`, loan.principal]);
+            configData.push([`${loan.name} ROI`, loan.roi]);
+        }
     });
 
     const maxRows = Math.max(configData.length, appState.schedule.length);
@@ -682,12 +975,30 @@ function downloadCSV() {
             appState.config.loans.forEach(loanConfig => {
                 row.push(""); 
                 const lData = month.loans[loanConfig.id];
-                if (lData) row.push(month.dateString, lData.opening, lData.interest, lData.principalPaid, lData.totalPayment, lData.closing);
-                else row.push("", "", "", "", "", ""); 
+                if (lData) {
+                    if (loanConfig.loanType === 'moneyLender') {
+                        row.push(month.dateString, lData.opening, lData.interest, lData.rdAddition || 0, lData.rdBalance || 0, lData.principalPaid, lData.totalPayment, lData.closing, lData.note || "");
+                    } else {
+                        row.push(month.dateString, lData.opening, lData.interest, lData.principalPaid, lData.totalPayment, lData.closing);
+                    }
+                } else {
+                    if (loanConfig.loanType === 'moneyLender') {
+                        row.push("", "", "", "", "", "", "", "", "");
+                    } else {
+                        row.push("", "", "", "", "", "");
+                    }
+                }
             });
         } else {
             row.push("", "", "", "", "", "");
-            appState.config.loans.forEach(() => row.push("", "", "", "", "", "", ""));
+            appState.config.loans.forEach(loanConfig => {
+                row.push(""); 
+                if (loanConfig.loanType === 'moneyLender') {
+                    row.push("", "", "", "", "", "", "", "", "");
+                } else {
+                    row.push("", "", "", "", "", "");
+                }
+            });
         }
         csvRows.push(row);
     }
