@@ -137,8 +137,8 @@
             <div class="loan-card-header">
                 <input type="text" class="loan-name-input" placeholder="Loan Name (e.g., Home Loan)" required>
                 <select class="loan-type-selector">
-                    <option value="bank">Bank Loan</option>
-                    <option value="moneyLender">Outside Money Lender</option>
+                    <option value="bank">Bank</option>
+                    <option value="moneyLender">Money Lender</option>
                 </select>
                 <button class="btn-icon remove-loan-btn" aria-label="Remove Loan">✖</button>
             </div>
@@ -147,7 +147,7 @@
                 <p>💡 For Outside Money Lenders: Unlike bank EMI, you only need to pay the monthly interest. The RD/SB strategy helps you accumulate extra savings separately to eventually pay off principal. Paying only interest will never close the loan.</p>
             </div>
 
-            <div class="input-grid bank-loan-fields" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="input-grid bank-loan-fields">
                 <div class="input-group">
                     <label>Principal Pending (₹)</label>
                     <input type="number" class="loan-principal" placeholder="1500000" required>
@@ -167,28 +167,28 @@
                 </div>
             </div>
 
-            <div class="input-grid moneyLender-loan-fields hidden" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="input-grid moneyLender-loan-fields hidden">
                 <div class="input-group">
                     <label>Principal Pending (₹)</label>
-                    <input type="number" class="loan-principal" placeholder="500000" required>
+                    <input type="number" class="loan-principal" placeholder="500000">
                 </div>
                 <div class="input-group">
                     <label>Monthly Interest Amount (₹)</label>
-                    <input type="number" class="loan-monthly-interest" placeholder="e.g., 5000" step="0.01" required>
+                    <input type="number" class="loan-monthly-interest" placeholder="e.g., 5000" step="0.01">
                     <div class="loan-implied-rate sub-text highlight hidden"></div>
                 </div>
                 <div class="input-group">
                     <label>Minimum Lumpsum for Prepayment (₹)</label>
-                    <input type="number" class="loan-min-lumpsum" placeholder="e.g., 50000" required>
+                    <input type="number" class="loan-min-lumpsum" placeholder="e.g., 50000">
                     <div class="loan-lumpsum-note sub-text hidden"></div>
                 </div>
                 <div class="input-group">
                     <label>RD/SB Interest Rate (% p.a.)</label>
-                    <input type="number" class="loan-rd-rate" placeholder="e.g., 4.5" step="0.01" required>
+                    <input type="number" class="loan-rd-rate" placeholder="e.g., 4.5" step="0.01">
                 </div>
                 <div class="input-group payment-input-group">
                     <label>Total Monthly Amount to Pay (₹)</label>
-                    <input type="number" class="loan-payment emi-tracker" placeholder="e.g., 8000" required>
+                    <input type="number" class="loan-payment emi-tracker" placeholder="e.g., 8000">
                 </div>
             </div>
         </div>

@@ -61,9 +61,6 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 .header-with-action { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 .loan-list { display: flex; flex-direction: column; gap: 1rem; }
 .loan-card { border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; background-color: var(--bg-color); }
-.loan-card-header { display: flex; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
-.loan-name-input { font-size: 1.1rem; font-weight: 600; border: none; background: transparent; color: var(--text-color); width: 80%; outline: none; }
-.remove-loan-btn { color: var(--error-color); font-size: 1rem; padding: 0.2rem; }
 
 /* Inputs and Forms */
 /* Inputs and Forms */
@@ -277,11 +274,32 @@ del {
     background-color: var(--bg-color);
 }
 
-.loan-type-selector {
-    padding: 0.5rem;
-    margin: 0 0.5rem;
-    font-size: 0.9rem;
+.loan-card-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.loan-name-input {
+    flex: 1;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    outline: none;
+    min-width: 0;
+}
+
+.remove-loan-btn {
     flex-shrink: 0;
+    color: var(--error-color);
+    font-size: 1rem;
+    padding: 0.2rem;
 }
 
 .loan-type-info-banner {
@@ -300,14 +318,16 @@ del {
 
 .moneyLender-loan-fields {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .bank-loan-fields {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .loan-implied-rate {
