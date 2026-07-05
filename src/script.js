@@ -476,6 +476,8 @@ function runSimulation(config, strategyType) {
         if (l.loanType === 'moneyLender') {
             loanCopy.rdBalance = 0;
             loanCopy.rdPaidFromThisMonth = false;
+            // Derived rate so interest scales as principal reduces after each lumpsum
+            loanCopy.monthlyInterestRate = l.principal > 0 ? l.monthlyInterest / l.principal : 0;
         }
         return loanCopy;
     });
@@ -503,8 +505,9 @@ function runSimulation(config, strategyType) {
             for (let loan of activeLoans) {
                 if (loan.remaining > 0) {
                     if (loan.loanType === 'moneyLender') {
-                        loan.currentMonthInterest = loan.monthlyInterest;
-                        loan.currentMonthPayment = loan.monthlyInterest;
+                        const interest = loan.remaining * loan.monthlyInterestRate;
+                        loan.currentMonthInterest = interest;
+                        loan.currentMonthPayment = interest;
                     } else {
                         let interest = loan.remaining * (loan.roi / 12 / 100);
                         loan.currentMonthInterest = interest;
@@ -584,7 +587,8 @@ function runSimulation(config, strategyType) {
             for (let loan of activeLoans) {
                 if (loan.remaining > 0) {
                     if (loan.loanType === 'moneyLender') {
-                        loan.currentMonthInterest = loan.monthlyInterest;
+                        const interest = loan.remaining * loan.monthlyInterestRate;
+                        loan.currentMonthInterest = interest;
                         loan.currentMonthPayment = loan.payment;
                     } else {
                         let interest = loan.remaining * (loan.roi / 12 / 100);
@@ -849,7 +853,7 @@ function renderSummaries() {
         let lTimeSavedStr = '';
         
         if (l.loanType === 'moneyLender') {
-            dateComparisonStr = `<p>If only paying interest: <strong>${d.date}</strong></p>`;
+            dateComparisonStr = `<p>Considering if you are only paying interest till <strong>${d.date}</strong></p>`;
             
             // Show comparison: what they'd pay vs what they'll pay with strategy
             const interestDiff = b.total - d.total;
@@ -857,7 +861,7 @@ function renderSummaries() {
                 const interestDiffPct = ((interestDiff / b.total) * 100).toFixed(1);
                 lMoneySavedStr = `<p style="margin-top:0.5rem"><strong>Interest without RD/SB strategy:</strong> ₹${fmt(b.total)}<br><strong>Interest with current strategy:</strong> ₹${fmt(d.total)}<br><span class="success-text">Savings: ₹${fmt(interestDiff)} (${interestDiffPct}%)</span></p>`;
             }
-            lMoneySavedStr += `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Note: This is interest accumulated until your loan closes without reducing principal (RD/SB not considered). Not actual interest paid.</p>`;
+            lMoneySavedStr += `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">You are reducing the above mentioned amount by saving and paying off this never ending loan.</p>`;
         } else {
             // Individual savings vs Base Bank EMI
             const lTimeDiffMonths = parseMonthYear(b.date) - parseMonthYear(d.date);
