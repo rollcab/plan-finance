@@ -232,25 +232,27 @@ function gatherInputs() {
         const loanType = typeSelector ? typeSelector.value : 'bank';
         
         if (loanType === 'moneyLender') {
+            const moneyLenderFields = card.querySelector('.moneyLender-loan-fields');
             config.loans.push({
                 id: `loan_${index}`,
                 loanType: 'moneyLender',
                 name: card.querySelector('.loan-name-input').value || `Loan ${index + 1}`,
-                principal: parseFloat(card.querySelector('.loan-principal').value),
-                monthlyInterest: parseFloat(card.querySelector('.loan-monthly-interest').value),
-                minimumLumpsum: parseFloat(card.querySelector('.loan-min-lumpsum').value),
-                rdInterestRate: parseFloat(card.querySelector('.loan-rd-rate').value),
-                payment: parseFloat(card.querySelector('.loan-payment').value) || 0
+                principal: parseFloat(moneyLenderFields.querySelector('.loan-principal').value),
+                monthlyInterest: parseFloat(moneyLenderFields.querySelector('.loan-monthly-interest').value),
+                minimumLumpsum: parseFloat(moneyLenderFields.querySelector('.loan-min-lumpsum').value),
+                rdInterestRate: parseFloat(moneyLenderFields.querySelector('.loan-rd-rate').value),
+                payment: parseFloat(moneyLenderFields.querySelector('.loan-payment').value) || 0
             });
         } else {
+            const bankFields = card.querySelector('.bank-loan-fields');
             config.loans.push({
                 id: `loan_${index}`,
                 loanType: 'bank',
                 name: card.querySelector('.loan-name-input').value || `Loan ${index + 1}`,
-                principal: parseFloat(card.querySelector('.loan-principal').value),
-                roi: parseFloat(card.querySelector('.loan-roi').value),
-                bankEmi: parseFloat(card.querySelector('.loan-bank-emi').value),
-                payment: parseFloat(card.querySelector('.loan-payment').value) || 0
+                principal: parseFloat(bankFields.querySelector('.loan-principal').value),
+                roi: parseFloat(bankFields.querySelector('.loan-roi').value),
+                bankEmi: parseFloat(bankFields.querySelector('.loan-bank-emi').value),
+                payment: parseFloat(bankFields.querySelector('.loan-payment').value) || 0
             });
         }
     });
