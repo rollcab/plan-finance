@@ -158,9 +158,11 @@ function addLoanCard(loanData = null) {
     if (loanData) {
         loanCard.querySelector('.loan-name-input').value = loanData.name || '';
         
-        console.log('Loading loan:', loanData.name, 'Type:', loanData.loanType, 'Data:', loanData);
+        // Ensure loanType defaults to 'bank' if not specified
+        const loanType = loanData.loanType || 'bank';
+        console.log('Loading loan:', loanData.name, 'Type:', loanType, 'Full data:', loanData);
         
-        if (loanData.loanType === 'moneyLender') {
+        if (loanType === 'moneyLender') {
             typeSelector.value = 'moneyLender';
             bankFields.classList.add('hidden');
             moneyLenderFields.classList.remove('hidden');
@@ -969,9 +971,12 @@ function exportJSON() {
 
 function importJSON(event) {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) {
+        console.log('No file selected');
+        return;
+    }
 
-    alert('Starting import of: ' + file.name);
+    console.log('Starting import of:', file.name);
     
     const rawFileName = file.name.replace(/\.json$/i, '');
     const parts = rawFileName.split('.');
@@ -991,7 +996,6 @@ function importJSON(event) {
         try {
             const config = JSON.parse(e.target.result);
             console.log('Loaded config:', config);
-            alert('Config loaded with ' + config.loans.length + ' loans');
             if (config.global) {
                 if(config.global.startMonth !== undefined) document.getElementById('startMonth').value = config.global.startMonth;
                 if(config.global.startYear) document.getElementById('startYear').value = config.global.startYear;
@@ -1009,16 +1013,17 @@ function importJSON(event) {
                     console.log('Import loan', idx, ':', loan.name, 'type:', loan.loanType);
                     addLoanCard(loan);
                 });
-                alert('Loans added to form, about to update and calculate');
+                console.log('All loans added to form');
                 updateMinBudgetDisplay();
+                console.log('Updated min budget display');
                 handleCalculate();
-                alert('Import complete!');
+                console.log('Calculation complete');
             } else {
                 addLoanCard(); 
             }
         } catch (error) {
-            alert("Error during import: " + error.message + "\n\nStack: " + error.stack);
             console.error('Import error:', error);
+            alert("Error during import: " + error.message);
         }
     };
     reader.readAsText(file);
