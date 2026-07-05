@@ -365,7 +365,7 @@ function handleCalculate() {
             appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
         } else if (baselineResult.error === "Calculation exceeded 100 years. Please check your inputs.") {
             // For baseline with money lenders paying only interest, this is expected
-            // Use the schedule data collected up to the limit
+            // Summarize whatever schedule data we have (even if it's the 100-year limit)
             if (baselineResult.schedule && baselineResult.schedule.length > 0) {
                 appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
                 // Mark money lender loans as never closing
@@ -375,7 +375,21 @@ function handleCalculate() {
                     }
                 });
             } else {
-                throw new Error('Exceeded 100 years with empty schedule');
+                // Empty schedule means baseline couldn't calculate - use a simple default
+                console.log('Baseline exceeded 100 years with empty schedule');
+                const fallbackLoans = {};
+                baselineConfig.loans.forEach(l => {
+                    let totalInterest = 0;
+                    // For money lenders, estimate interest for first month as reference
+                    if (l.loanType === 'moneyLender') {
+                        totalInterest = l.monthlyInterest * 12; // 1 year of interest
+                    }
+                    fallbackLoans[l.id] = { name: l.name, paid: 0, remain: totalInterest, total: totalInterest, date: 'Never (Interest only)', principal: l.principal, loanType: l.loanType };
+                });
+                appState.baselineSummary = { 
+                    combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: baselineConfig.loans.reduce((sum, l) => sum + l.principal, 0) }, 
+                    loans: fallbackLoans 
+                };
             }
         } else {
             throw new Error(baselineResult.error || 'Empty schedule');
