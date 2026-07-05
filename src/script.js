@@ -186,15 +186,19 @@ function addLoanCard(loanData = null) {
 
 function updateImpliedRate(card) {
     const moneyLenderFields = card.querySelector('.moneyLender-loan-fields');
+    const rateEl = card.querySelector('.loan-implied-rate');
+    
+    if (!rateEl) return;
+    
     if (!moneyLenderFields || moneyLenderFields.classList.contains('hidden')) {
+        rateEl.classList.add('hidden');
         return;
     }
     
     const principal = parseFloat(moneyLenderFields.querySelector('.loan-principal').value);
     const monthlyInterest = parseFloat(moneyLenderFields.querySelector('.loan-monthly-interest').value);
-    const rateEl = card.querySelector('.loan-implied-rate');
     
-    if (!isNaN(principal) && !isNaN(monthlyInterest) && principal > 0) {
+    if (!isNaN(principal) && !isNaN(monthlyInterest) && principal > 0 && monthlyInterest > 0) {
         const impliedRate = (monthlyInterest / principal) * 12 * 100;
         rateEl.textContent = `Implied Interest Rate: ${impliedRate.toFixed(2)}% p.a.`;
         rateEl.classList.remove('hidden');
@@ -205,13 +209,17 @@ function updateImpliedRate(card) {
 
 function updateLumpsumNote(card) {
     const moneyLenderFields = card.querySelector('.moneyLender-loan-fields');
+    const noteEl = card.querySelector('.loan-lumpsum-note');
+    
+    if (!noteEl) return;
+    
     if (!moneyLenderFields || moneyLenderFields.classList.contains('hidden')) {
+        noteEl.classList.add('hidden');
         return;
     }
     
     const principal = parseFloat(moneyLenderFields.querySelector('.loan-principal').value);
     const minLumpsum = parseFloat(moneyLenderFields.querySelector('.loan-min-lumpsum').value);
-    const noteEl = card.querySelector('.loan-lumpsum-note');
     
     if (!isNaN(principal) && !isNaN(minLumpsum) && principal > 0 && minLumpsum > 0) {
         if (minLumpsum > principal) {
@@ -334,6 +342,8 @@ function handleCalculate() {
     const baselineResult = runSimulation(baselineConfig, 'manual');
     if (!baselineResult.error) {
         appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
+    } else {
+        appState.baselineSummary = appState.baselineSummary || { combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: 0 }, loans: {} };
     }
 
     // 2. Run selected user strategy
@@ -659,6 +669,11 @@ function renderSummaries() {
     const selectedStrategy = appState.config.global.strategy;
     const summaryData = appState.simulations[selectedStrategy];
     const baseSummary = appState.baselineSummary;
+
+    if (!baseSummary || !summaryData) {
+        console.error('Missing summary data', { baseSummary, summaryData });
+        return;
+    }
 
     // Build the dynamic pills for the OTHER strategies
     let pillsHTML = '';
