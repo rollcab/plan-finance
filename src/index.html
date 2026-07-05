@@ -74,16 +74,19 @@
                     <div class="input-group" id="totalBudgetGroup">
                         <label for="totalBudget">Total Monthly Budget (₹)</label>
                         <input type="number" id="totalBudget" placeholder="e.g., 100000" class="disabled-input" readonly>
-                        <div id="minBudgetNote" class="sub-text highlight hidden">Minimum required to cover EMIs: ₹0</div>
-                        <div id="manualBudgetNote" class="sub-text">In manual mode, this is auto-calculated from your loans and cannot be edited.</div>
+                        <div id="minBudgetNote" class="sub-text highlight hidden">Minimum required to cover Planned Payments: ₹0</div>
+                        <div id="manualBudgetNote" class="sub-text">In manual mode, this is auto-calculated and cannot be edited.</div>
                     </div>
                 </div>
 
                 <div class="strategy-descriptions">
                     <h4>Strategy Explanations:</h4>
                     <ul>
-                        <li><strong>Manual Mode:</strong> Directly applies the amount entered in the "Minimum EMI" field for each individual loan. <br><em class="highlight">Note: Once a loan is paid off, its EMI is NOT magically reallocated to other loans. Your total monthly out-of-pocket budget will naturally decrease over time.</em></li>
-                        <li><strong>Automated Modes (Equally Split, Highest Interest, Highest ROI):</strong> You commit a fixed, continuous <strong>Total Monthly Budget</strong>. <br><em class="highlight">Note: Once a loan is paid off, its payment is aggressively reallocated to the remaining loans until you are completely debt-free. You will pay the same total amount every month until the end.</em></li>
+                        <li><strong>Manual Mode:</strong> Directly applies the amount entered in the "How much you want to pay?" field for each individual loan. <br><em class="highlight">Note: Once a loan is paid off, its payment is NOT reallocated. Your total out-of-pocket budget will naturally decrease over time.</em></li>
+                        <li><strong>Equally Split Extra Across Loans:</strong> Pays all base planned payments first, then takes the remainder of your Total Budget and distributes it evenly across all active loans.</li>
+                        <li><strong>Highest Monthly Interest First:</strong> Pays all base planned payments first, then funnels all remaining cash into the loan generating the largest absolute interest charge (₹) that month.</li>
+                        <li><strong>Highest ROI First (Avalanche):</strong> Pays all base planned payments first, then funnels all remaining cash into the loan with the highest percentage interest rate (%). This mathematically guarantees the absolute minimum lifetime interest.</li>
+                        <li><em class="highlight">Note on Automated Modes: Once a loan is paid off, its payment is aggressively reallocated to the remaining loans until you are completely debt-free. You will pay the same total amount every month until the end.</em></li>
                     </ul>
                 </div>
 
@@ -135,7 +138,7 @@
                 <input type="text" class="loan-name-input" placeholder="Loan Name (e.g., Home Loan)" required>
                 <button class="btn-icon remove-loan-btn" aria-label="Remove Loan">✖</button>
             </div>
-            <div class="input-grid">
+            <div class="input-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                 <div class="input-group">
                     <label>Principal Pending (₹)</label>
                     <input type="number" class="loan-principal" placeholder="1500000" required>
@@ -144,10 +147,14 @@
                     <label>Rate of Interest (%)</label>
                     <input type="number" class="loan-roi" placeholder="8.5" step="0.01" required>
                 </div>
-                <div class="input-group payment-input-group">
-                    <label class="dynamic-payment-label">Minimum EMI (₹)</label>
-                    <input type="number" class="loan-payment emi-tracker" placeholder="e.g., 25000" required>
+                <div class="input-group">
+                    <label>Actual Bank EMI (₹)</label>
+                    <input type="number" class="loan-bank-emi" placeholder="e.g., 20000" required>
                     <div class="loan-min-note sub-text highlight hidden"></div>
+                </div>
+                <div class="input-group payment-input-group">
+                    <label>How much you want to pay? (₹)</label>
+                    <input type="number" class="loan-payment emi-tracker" placeholder="e.g., 25000" required>
                 </div>
             </div>
         </div>
