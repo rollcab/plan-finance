@@ -158,6 +158,8 @@ function addLoanCard(loanData = null) {
     if (loanData) {
         loanCard.querySelector('.loan-name-input').value = loanData.name || '';
         
+        console.log('Loading loan:', loanData.name, 'Type:', loanData.loanType, 'Data:', loanData);
+        
         if (loanData.loanType === 'moneyLender') {
             typeSelector.value = 'moneyLender';
             bankFields.classList.add('hidden');
@@ -172,6 +174,7 @@ function addLoanCard(loanData = null) {
             moneyLenderFields.querySelector('.loan-rd-rate').value = loanData.rdInterestRate !== undefined ? loanData.rdInterestRate : '';
             moneyLenderFields.querySelector('.loan-payment').value = loanData.payment !== undefined ? loanData.payment : '';
             
+            console.log('Set to money lender loan');
             updateImpliedRate(loanCard);
             updateLumpsumNote(loanCard);
         } else {
@@ -187,6 +190,7 @@ function addLoanCard(loanData = null) {
             bankFields.querySelector('.loan-bank-emi').value = loanData.bankEmi !== undefined ? loanData.bankEmi : '';
             bankFields.querySelector('.loan-payment').value = loanData.payment !== undefined ? loanData.payment : '';
             
+            console.log('Set to bank loan');
             updateLoanMinNote(loanCard);
         }
     }
@@ -984,6 +988,7 @@ function importJSON(event) {
     reader.onload = function(e) {
         try {
             const config = JSON.parse(e.target.result);
+            console.log('Loaded config:', config);
             if (config.global) {
                 if(config.global.startMonth !== undefined) document.getElementById('startMonth').value = config.global.startMonth;
                 if(config.global.startYear) document.getElementById('startYear').value = config.global.startYear;
@@ -996,7 +1001,11 @@ function importJSON(event) {
 
             document.getElementById('loanList').innerHTML = '';
             if (config.loans && config.loans.length > 0) {
-                config.loans.forEach(loan => addLoanCard(loan));
+                console.log('Importing', config.loans.length, 'loans');
+                config.loans.forEach((loan, idx) => {
+                    console.log('Import loan', idx, ':', loan.name, 'type:', loan.loanType);
+                    addLoanCard(loan);
+                });
                 updateMinBudgetDisplay();
                 handleCalculate();
             } else {
