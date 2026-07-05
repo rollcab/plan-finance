@@ -185,8 +185,13 @@ function addLoanCard(loanData = null) {
 }
 
 function updateImpliedRate(card) {
-    const principal = parseFloat(card.querySelector('.loan-principal').value);
-    const monthlyInterest = parseFloat(card.querySelector('.loan-monthly-interest').value);
+    const moneyLenderFields = card.querySelector('.moneyLender-loan-fields');
+    if (!moneyLenderFields || moneyLenderFields.classList.contains('hidden')) {
+        return;
+    }
+    
+    const principal = parseFloat(moneyLenderFields.querySelector('.loan-principal').value);
+    const monthlyInterest = parseFloat(moneyLenderFields.querySelector('.loan-monthly-interest').value);
     const rateEl = card.querySelector('.loan-implied-rate');
     
     if (!isNaN(principal) && !isNaN(monthlyInterest) && principal > 0) {
@@ -199,8 +204,13 @@ function updateImpliedRate(card) {
 }
 
 function updateLumpsumNote(card) {
-    const principal = parseFloat(card.querySelector('.loan-principal').value);
-    const minLumpsum = parseFloat(card.querySelector('.loan-min-lumpsum').value);
+    const moneyLenderFields = card.querySelector('.moneyLender-loan-fields');
+    if (!moneyLenderFields || moneyLenderFields.classList.contains('hidden')) {
+        return;
+    }
+    
+    const principal = parseFloat(moneyLenderFields.querySelector('.loan-principal').value);
+    const minLumpsum = parseFloat(moneyLenderFields.querySelector('.loan-min-lumpsum').value);
     const noteEl = card.querySelector('.loan-lumpsum-note');
     
     if (!isNaN(principal) && !isNaN(minLumpsum) && principal > 0 && minLumpsum > 0) {
@@ -693,7 +703,7 @@ function renderSummaries() {
         </div>
     `;
 
-    const combinedPercentLost = ((summaryData.combined.total / summaryData.combined.principal) * 100).toFixed(1);
+    const combinedPercentLost = summaryData.combined.principal > 0 ? ((summaryData.combined.total / summaryData.combined.principal) * 100).toFixed(1) : 0;
 
     // Calculate Savings vs Base Bank EMI
     const timeDiffMonths = parseMonthYear(baseSummary.combined.date) - parseMonthYear(summaryData.combined.date);
@@ -728,14 +738,14 @@ function renderSummaries() {
     appState.config.loans.forEach(l => {
         const d = summaryData.loans[l.id];
         const b = baseSummary.loans[l.id]; // baseline individual
-        const percentLost = ((d.total / d.principal) * 100).toFixed(1);
+        const percentLost = d.principal > 0 ? ((d.total / d.principal) * 100).toFixed(1) : 0;
         
         // Individual savings vs Base Bank EMI
         const lTimeDiffMonths = parseMonthYear(b.date) - parseMonthYear(d.date);
         const lTimeSavedStr = lTimeDiffMonths > 0 ? `<br><span class="success-text" style="font-size:0.85rem">(Closed ${formatDiff(lTimeDiffMonths)} earlier)</span>` : '';
         const lMoneySaved = b.total - d.total;
         let lMoneySavedStr = '';
-        if (lMoneySaved > 0.1) {
+        if (lMoneySaved > 0.1 && b.total > 0) {
             const lMoneySavedPct = ((lMoneySaved / b.total) * 100).toFixed(1);
             lMoneySavedStr = ` <span class="success-text" style="font-size:0.85rem">(Saved ₹${fmt(lMoneySaved)} / -${lMoneySavedPct}%)</span>`;
         }
