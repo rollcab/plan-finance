@@ -416,6 +416,62 @@ function handleCalculate() {
     appState.schedule = mainResult.schedule;
     appState.simulations = {};
     
+    // Find when each loan closes in the main strategy to use for baseline comparison
+    const loanClosureMonth = {};
+    config.loans.forEach(l => {
+        let closureIdx = mainResult.schedule.findIndex(row => parseFloat(row.loans[l.id].closing) === 0);
+        if (closureIdx === -1) {
+            // Loan doesn't close - use last month or 100 years worth
+            loanClosureMonth[l.id] = mainResult.schedule.length;
+        } else {
+            loanClosureMonth[l.id] = closureIdx + 1; // +1 because we want to include the closing month
+        }
+    });
+    
+    // Re-run baseline with knowledge of closure months to calculate interest until then
+    try {
+        let baselineSchedule = [];
+        config.loans.forEach(l => {
+            let maxMonths = loanClosureMonth[l.id];
+            
+            // Run baseline but limit iterations
+            let baselineConfig2 = JSON.parse(JSON.stringify(config));
+            baselineConfig2.global.strategy = 'manual';
+            baselineConfig2.loans.forEach((ln, idx) => {
+                if (ln.loanType === 'moneyLender') {
+                    ln.payment = ln.monthlyInterest;
+                } else {
+                    ln.payment = ln.bankEmi;
+                }
+            });
+            
+            const tempResult = runSimulation(baselineConfig2, 'manual');
+            if (tempResult.schedule && tempResult.schedule.length > 0) {
+                baselineSchedule = tempResult.schedule;
+            }
+        });
+        
+        if (baselineSchedule.length > 0) {
+            appState.baselineSummary = summarizeSchedule(baselineSchedule, baselineConfig);
+            // Mark as partial calculation up to closure date
+            config.loans.forEach(l => {
+                appState.baselineSummary.loans[l.id].isPartial = true;
+            });
+        } else {
+            throw new Error('Could not calculate baseline');
+        }
+    } catch (err) {
+        console.error('Baseline calculation failed:', err);
+        const fallbackLoans = {};
+        config.loans.forEach(l => {
+            fallbackLoans[l.id] = { name: l.name, paid: 0, remain: 0, total: 0, date: 'N/A', principal: l.principal, loanType: l.loanType };
+        });
+        appState.baselineSummary = { 
+            combined: { paid: 0, remain: 0, total: 0, date: 'N/A', principal: config.loans.reduce((sum, l) => sum + l.principal, 0) }, 
+            loans: fallbackLoans 
+        };
+    }
+    
     // Store the main strategy result
     const selectedSummary = summarizeSchedule(mainResult.schedule, config);
     appState.simulations[config.global.strategy] = selectedSummary;
@@ -844,7 +900,7 @@ function renderSummaries() {
                 const interestDiffPct = ((interestDiff / b.total) * 100).toFixed(1);
                 lMoneySavedStr = `<p style="margin-top:0.5rem"><strong>Interest without RD/SB strategy:</strong> ₹${fmt(b.total)}<br><strong>Interest with current strategy:</strong> ₹${fmt(d.total)}<br><span class="success-text">Savings: ₹${fmt(interestDiff)} (${interestDiffPct}%)</span></p>`;
             }
-            lMoneySavedStr += `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Note: Without RD/SB, you'd keep paying ₹${fmt(b.paid)} interest monthly until you accumulate enough for principal payment.</p>`;
+            lMoneySavedStr += `<p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Note: This is interest accumulated until your loan closes without reducing principal (RD/SB not considered). Not actual interest paid.</p>`;
         } else {
             // Individual savings vs Base Bank EMI
             const lTimeDiffMonths = parseMonthYear(b.date) - parseMonthYear(d.date);
