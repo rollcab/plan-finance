@@ -134,13 +134,16 @@
 
     <template id="loan-card-template">
         <div class="loan-card">
-            <div class="loan-card-header">
+            <div class="loan-name-section">
                 <input type="text" class="loan-name-input" placeholder="Loan Name (e.g., Home Loan)" required>
-                <select class="loan-type-selector">
-                    <option value="bank">Bank</option>
-                    <option value="moneyLender">Money Lender</option>
-                </select>
                 <button class="btn-icon remove-loan-btn" aria-label="Remove Loan">✖</button>
+            </div>
+            
+            <div class="loan-type-section">
+                <select class="loan-type-selector">
+                    <option value="bank">Bank Loan</option>
+                    <option value="moneyLender">Money Lender Loan</option>
+                </select>
             </div>
             
             <div class="loan-type-info-banner moneyLender-info hidden">
