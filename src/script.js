@@ -165,12 +165,12 @@ function addLoanCard(loanData = null) {
             infoBanner.classList.remove('hidden');
             loanCard.classList.add('moneyLender-card');
             
-            // Set money lender specific fields
-            moneyLenderFields.querySelector('.loan-principal').value = loanData.principal || '';
-            moneyLenderFields.querySelector('.loan-monthly-interest').value = loanData.monthlyInterest || '';
-            moneyLenderFields.querySelector('.loan-min-lumpsum').value = loanData.minimumLumpsum || '';
-            moneyLenderFields.querySelector('.loan-rd-rate').value = loanData.rdInterestRate || '';
-            moneyLenderFields.querySelector('.loan-payment').value = loanData.payment || '';
+            // Set money lender specific fields - use !== undefined to handle 0 values
+            moneyLenderFields.querySelector('.loan-principal').value = loanData.principal !== undefined ? loanData.principal : '';
+            moneyLenderFields.querySelector('.loan-monthly-interest').value = loanData.monthlyInterest !== undefined ? loanData.monthlyInterest : '';
+            moneyLenderFields.querySelector('.loan-min-lumpsum').value = loanData.minimumLumpsum !== undefined ? loanData.minimumLumpsum : '';
+            moneyLenderFields.querySelector('.loan-rd-rate').value = loanData.rdInterestRate !== undefined ? loanData.rdInterestRate : '';
+            moneyLenderFields.querySelector('.loan-payment').value = loanData.payment !== undefined ? loanData.payment : '';
             
             updateImpliedRate(loanCard);
             updateLumpsumNote(loanCard);
@@ -181,11 +181,11 @@ function addLoanCard(loanData = null) {
             infoBanner.classList.add('hidden');
             loanCard.classList.remove('moneyLender-card');
             
-            // Set bank loan specific fields
-            bankFields.querySelector('.loan-principal').value = loanData.principal || '';
-            bankFields.querySelector('.loan-roi').value = loanData.roi || '';
-            bankFields.querySelector('.loan-bank-emi').value = loanData.bankEmi || '';
-            bankFields.querySelector('.loan-payment').value = loanData.payment || '';
+            // Set bank loan specific fields - use !== undefined to handle 0 values
+            bankFields.querySelector('.loan-principal').value = loanData.principal !== undefined ? loanData.principal : '';
+            bankFields.querySelector('.loan-roi').value = loanData.roi !== undefined ? loanData.roi : '';
+            bankFields.querySelector('.loan-bank-emi').value = loanData.bankEmi !== undefined ? loanData.bankEmi : '';
+            bankFields.querySelector('.loan-payment').value = loanData.payment !== undefined ? loanData.payment : '';
             
             updateLoanMinNote(loanCard);
         }
@@ -331,7 +331,7 @@ function handleCalculate() {
             if (loan.payment < loan.bankEmi) {
                 showError(`'How much you want to pay' for ${loan.name} (₹${loan.payment}) cannot be less than the Bank EMI (₹${loan.bankEmi}).`); return;
             }
-            baseEmiTotal += loan.monthlyInterest;
+            baseEmiTotal += loan.bankEmi;
         }
     }
 
@@ -379,7 +379,13 @@ function handleCalculate() {
     appState.simulations[config.global.strategy] = selectedSummary;
     
     // 3. Run all other strategies for comparison pills
-    const simulationBudget = Math.max(config.global.totalBudget, baseEmiTotal);
+    // For comparisons, calculate the total they're paying (for manual: sum of payments, for others: totalBudget)
+    let comparisonBudget = config.global.totalBudget;
+    if (config.global.strategy === 'manual') {
+        comparisonBudget = config.loans.reduce((sum, l) => sum + l.payment, 0);
+    }
+    const simulationBudget = Math.max(comparisonBudget, baseEmiTotal);
+    
     Object.keys(STRATEGY_NAMES).forEach(strategyKey => {
         if (strategyKey === config.global.strategy) return; // Skip, already have this
         
