@@ -2,7 +2,8 @@ let appState = {
     baseFileName: "portfolio_config",
     config: { global: {}, loans: [] },
     schedule: [],
-    simulations: {} 
+    simulations: {},
+    baselineSummary: null // Stores the "Bank EMI Only" baseline
 };
 
 const STRATEGY_NAMES = {
@@ -58,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loanList').addEventListener('input', (e) => {
         updateMinBudgetDisplay();
         
-        // Target the specific card if Principal or ROI changed
         if (e.target.classList.contains('loan-principal') || e.target.classList.contains('loan-roi')) {
             const card = e.target.closest('.loan-card');
             updateLoanMinNote(card);
@@ -83,7 +83,7 @@ function updateLoanMinNote(card) {
     
     if (!isNaN(principal) && !isNaN(roi) && principal > 0) {
         const minRequired = Math.ceil((principal * (roi / 12 / 100)) + 1);
-        noteEl.textContent = `To become debt free, you should pay a minimum of ₹${minRequired.toLocaleString('en-IN')}`;
+        noteEl.textContent = `Must be at least ₹${minRequired.toLocaleString('en-IN')} to clear interest`;
         noteEl.classList.remove('hidden');
     } else {
         noteEl.classList.add('hidden');
@@ -105,7 +105,7 @@ function updateMinBudgetDisplay() {
         tbInput.value = totalEmi; 
     } else {
         if (totalEmi > 0) {
-            noteEl.textContent = `Minimum required to cover EMIs: ₹${totalEmi.toLocaleString('en-IN')}`;
+            noteEl.textContent = `Minimum required to cover Planned Payments: ₹${totalEmi.toLocaleString('en-IN')}`;
             noteEl.classList.remove('hidden');
         } else {
             noteEl.classList.add('hidden');
@@ -127,6 +127,7 @@ function addLoanCard(loanData = null) {
         loanCard.querySelector('.loan-name-input').value = loanData.name || '';
         loanCard.querySelector('.loan-principal').value = loanData.principal || '';
         loanCard.querySelector('.loan-roi').value = loanData.roi || '';
+        loanCard.querySelector('.loan-bank-emi').value = loanData.bankEmi || '';
         loanCard.querySelector('.loan-payment').value = loanData.payment || '';
         updateLoanMinNote(loanCard);
     }
@@ -153,6 +154,7 @@ function gatherInputs() {
             name: card.querySelector('.loan-name-input').value || `Loan ${index + 1}`,
             principal: parseFloat(card.querySelector('.loan-principal').value),
             roi: parseFloat(card.querySelector('.loan-roi').value),
+            bankEmi: parseFloat(card.querySelector('.loan-bank-emi').value),
             payment: parseFloat(card.querySelector('.loan-payment').value) || 0
         });
     });
@@ -170,23 +172,36 @@ function handleCalculate() {
     
     let baseEmiTotal = 0;
     for (let loan of config.loans) {
-        if (isNaN(loan.principal) || isNaN(loan.roi) || isNaN(loan.payment)) {
+        if (isNaN(loan.principal) || isNaN(loan.roi) || isNaN(loan.bankEmi) || isNaN(loan.payment)) {
             showError("Please fill in all numerical fields for your loans."); return;
         }
         
         const absoluteMin = Math.ceil((loan.principal * (loan.roi / 12 / 100)) + 1);
-        if (loan.payment < absoluteMin) {
-            showError(`Payment for ${loan.name} (₹${loan.payment}) is too low. You must pay at least ₹${absoluteMin} to cover interest and reduce the principal.`); return;
+        if (loan.bankEmi < absoluteMin) {
+            showError(`Actual Bank EMI for ${loan.name} (₹${loan.bankEmi}) is too low. You must pay at least ₹${absoluteMin} to cover interest.`); return;
+        }
+        if (loan.payment < loan.bankEmi) {
+            showError(`'How much you want to pay' for ${loan.name} (₹${loan.payment}) cannot be less than the Bank EMI (₹${loan.bankEmi}).`); return;
         }
         
         baseEmiTotal += loan.payment;
     }
 
     if (config.global.strategy !== 'manual' && (isNaN(config.global.totalBudget) || config.global.totalBudget < baseEmiTotal)) {
-        showError(`For automated allocation, your Total Monthly Budget must be at least ₹${baseEmiTotal.toLocaleString('en-IN')} to cover all Minimum EMIs.`); 
+        showError(`For automated allocation, your Total Monthly Budget must be at least ₹${baseEmiTotal.toLocaleString('en-IN')} to cover all Planned Payments.`); 
         return;
     }
 
+    // 1. Calculate Baseline: What if they only paid the strict Bank EMI? (Manual mode, using bankEmi)
+    let baselineConfig = JSON.parse(JSON.stringify(config));
+    baselineConfig.global.strategy = 'manual';
+    baselineConfig.loans.forEach(l => l.payment = l.bankEmi); 
+    const baselineResult = runSimulation(baselineConfig, 'manual');
+    if (!baselineResult.error) {
+        appState.baselineSummary = summarizeSchedule(baselineResult.schedule, baselineConfig);
+    }
+
+    // 2. Run selected user strategy
     const mainResult = runSimulation(config, config.global.strategy);
     if (mainResult.error) {
         showError(mainResult.error); return;
@@ -196,8 +211,8 @@ function handleCalculate() {
     appState.schedule = mainResult.schedule;
     appState.simulations = {};
     
+    // 3. Run all other strategies for comparison pills
     const simulationBudget = Math.max(config.global.totalBudget, baseEmiTotal);
-    
     Object.keys(STRATEGY_NAMES).forEach(strategyKey => {
         let simConfig = JSON.parse(JSON.stringify(config)); 
         simConfig.global.strategy = strategyKey;
@@ -385,11 +400,31 @@ function summarizeSchedule(schedule, config) {
     return data;
 }
 
+// Helper to convert "Jan 2026" to absolute months for subtraction
+function parseMonthYear(dateStr) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const parts = dateStr.split(' ');
+    if (parts.length !== 2) return 0;
+    return (parseInt(parts[1]) * 12) + months.indexOf(parts[0]);
+}
+
+function formatDiff(diffMonths) {
+    if (diffMonths <= 0) return '';
+    const y = Math.floor(diffMonths / 12);
+    const m = diffMonths % 12;
+    let res = [];
+    if (y > 0) res.push(`${y} year${y>1?'s':''}`);
+    if (m > 0) res.push(`${m} month${m>1?'s':''}`);
+    return res.join(', ');
+}
+
 function renderSummaries() {
     const fmt = (num) => Number(num.toFixed(2)).toLocaleString('en-IN');
     const selectedStrategy = appState.config.global.strategy;
     const summaryData = appState.simulations[selectedStrategy];
+    const baseSummary = appState.baselineSummary;
 
+    // Build the dynamic pills for the OTHER strategies
     let pillsHTML = '';
     const currentTotal = summaryData.combined.total;
 
@@ -424,7 +459,8 @@ function renderSummaries() {
 
     const comparisonSection = `
         <div class="comparisons-container">
-            <h4>Alternative Strategies Comparison:</h4>
+            <h4>Comparing to other strategies for your information:</h4>
+            <div class="sub-text" style="margin-bottom: 0.75rem;">(Based on your currently entered payments and budget)</div>
             <div class="pill-grid">
                 ${pillsHTML}
             </div>
@@ -433,15 +469,30 @@ function renderSummaries() {
 
     const combinedPercentLost = ((summaryData.combined.total / summaryData.combined.principal) * 100).toFixed(1);
 
+    // Calculate Savings vs Base Bank EMI
+    const timeDiffMonths = parseMonthYear(baseSummary.combined.date) - parseMonthYear(summaryData.combined.date);
+    const timeSavedStr = timeDiffMonths > 0 ? `(Closed ${formatDiff(timeDiffMonths)} earlier)` : '';
+    
+    const moneySaved = baseSummary.combined.total - summaryData.combined.total;
+    let moneySavedStr = '';
+    if (moneySaved > 0.1) {
+        const moneySavedPct = ((moneySaved / baseSummary.combined.total) * 100).toFixed(1);
+        moneySavedStr = `<span class="success-text">(Saved ₹${fmt(moneySaved)} / -${moneySavedPct}%)</span>`;
+    }
+
     const container = document.getElementById('portfolioSummaryContainer');
     const combinedHTML = `
         <div class="summary-block combined-summary">
-            <h3>Combined Portfolio <span class="highlight">(Ends: ${summaryData.combined.date})</span></h3>
+            <h3>Combined Portfolio</h3>
+            
             <div class="summary-stats">
-                <p>Interest Already Paid: ₹${fmt(summaryData.combined.paid)}</p>
-                <p>Interest To Be Paid: ₹${fmt(summaryData.combined.remain)}</p>
-                <p><strong>Overall Interest: ₹${fmt(summaryData.combined.total)}</strong></p>
-                <p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Money Lost to Interest: ${combinedPercentLost}% of Principal</p>
+                <p><strong>Debt-Free Date:</strong> <del>${baseSummary.combined.date}</del> <strong>${summaryData.combined.date}</strong> <span class="success-text">${timeSavedStr}</span></p>
+                <div class="base-comparison-note">
+                    <p><strong>Overall Interest:</strong> <del>₹${fmt(baseSummary.combined.total)}</del> <strong>₹${fmt(summaryData.combined.total)}</strong> ${moneySavedStr}</p>
+                    <p>Interest Already Paid: ₹${fmt(summaryData.combined.paid)}</p>
+                    <p>Interest To Be Paid: ₹${fmt(summaryData.combined.remain)}</p>
+                    <p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Money Lost to Interest: ${combinedPercentLost}% of Principal</p>
+                </div>
             </div>
             ${comparisonSection}
         </div>
@@ -450,14 +501,27 @@ function renderSummaries() {
     let individualHTML = '<div class="individual-summaries-grid">';
     appState.config.loans.forEach(l => {
         const d = summaryData.loans[l.id];
+        const b = baseSummary.loans[l.id]; // baseline individual
         const percentLost = ((d.total / d.principal) * 100).toFixed(1);
+        
+        // Individual savings vs Base Bank EMI
+        const lTimeDiffMonths = parseMonthYear(b.date) - parseMonthYear(d.date);
+        const lTimeSavedStr = lTimeDiffMonths > 0 ? `<br><span class="success-text" style="font-size:0.85rem">(Closed ${formatDiff(lTimeDiffMonths)} earlier)</span>` : '';
+        const lMoneySaved = b.total - d.total;
+        let lMoneySavedStr = '';
+        if (lMoneySaved > 0.1) {
+            const lMoneySavedPct = ((lMoneySaved / b.total) * 100).toFixed(1);
+            lMoneySavedStr = ` <span class="success-text" style="font-size:0.85rem">(Saved ₹${fmt(lMoneySaved)} / -${lMoneySavedPct}%)</span>`;
+        }
+
         individualHTML += `
             <div class="summary-block individual-summary">
-                <h4>${d.name} <span class="highlight">(Ends: ${d.date})</span></h4>
+                <h4>${d.name}</h4>
                 <div class="summary-stats">
-                    <p>Paid: ₹${fmt(d.paid)}</p>
-                    <p>Remaining: ₹${fmt(d.remain)}</p>
-                    <p><strong>Total: ₹${fmt(d.total)}</strong></p>
+                    <p>Ends: <del>${b.date}</del> <strong>${d.date}</strong> ${lTimeSavedStr}</p>
+                    <p style="margin-top:0.5rem"><strong>Total Int:</strong> <del>₹${fmt(b.total)}</del> <strong>₹${fmt(d.total)}</strong> ${lMoneySavedStr}</p>
+                    <p>Paid so far: ₹${fmt(d.paid)}</p>
+                    <p>Remaining Int: ₹${fmt(d.remain)}</p>
                     <p class="highlight" style="margin-top: 0.5rem; font-weight: 500;">Lost: ${percentLost}% of Principal</p>
                 </div>
             </div>
@@ -597,7 +661,8 @@ function downloadCSV() {
         configData.push(["Total Budget", appState.config.global.totalBudget]);
     } 
     appState.config.loans.forEach(loan => {
-        configData.push([`${loan.name} Payment`, loan.payment]);
+        configData.push([`${loan.name} Bank EMI`, loan.bankEmi]);
+        configData.push([`${loan.name} Planned Payment`, loan.payment]);
         configData.push([`${loan.name} Principal`, loan.principal]);
         configData.push([`${loan.name} ROI`, loan.roi]);
     });
